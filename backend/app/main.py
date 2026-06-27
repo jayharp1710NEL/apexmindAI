@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.benchmarks.routes import router as benchmarks_router
 from app.chat.routes import router as chat_router
 from app.config import settings
 from app.memory.routes import router as memory_router
@@ -97,6 +98,7 @@ def create_app(
     app.include_router(orchestrator_router)
     app.include_router(rag_router)
     app.include_router(memory_router)
+    app.include_router(benchmarks_router)
     return app
 
 

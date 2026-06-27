@@ -71,3 +71,29 @@ export async function ragQuery(query: string): Promise<RagAnswer> {
   if (!res.ok) throw new Error(`ragQuery failed: ${res.status}`);
   return res.json();
 }
+
+export interface BenchmarkResultRow {
+  test_id: string;
+  category: string;
+  passed: boolean | null;
+  detail: Record<string, unknown>;
+}
+
+export interface BenchmarkRun {
+  run_id: string | null;
+  summary: {
+    total: number;
+    scored: number;
+    passed: number;
+    failed: number;
+    skipped: number;
+    by_category: Record<string, { passed: number; failed: number; skipped: number }>;
+  };
+  results: BenchmarkResultRow[];
+}
+
+export async function runBenchmarks(): Promise<BenchmarkRun> {
+  const res = await fetch(`${API_BASE}/api/benchmarks/run`, { method: "POST" });
+  if (!res.ok) throw new Error(`runBenchmarks failed: ${res.status}`);
+  return res.json();
+}
