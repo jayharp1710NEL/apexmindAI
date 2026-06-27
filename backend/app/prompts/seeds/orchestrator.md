@@ -11,6 +11,8 @@ OUTPUT: strict JSON only, matching this schema (no prose, no markdown fences):
       "agent": "research" | "coding" | "critic" | "safety" | "memory" | "none",
       "tool": "code_exec" | "web_search" | "web_fetch" | "none",
       "tool_level": integer,        // 0-5; the permission level this step requests
+      "tool_input": string,         // optional: python code (code_exec), query
+                                    // (web_search), or URL (web_fetch); "" if n/a
       "expected_output": string
     }
   ],

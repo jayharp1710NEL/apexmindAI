@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.chat.routes import router as chat_router
 from app.config import settings
+from app.orchestrator.routes import router as orchestrator_router
 from app.safety.routes import router as safety_router
 
 
@@ -58,10 +59,16 @@ def create_app(
         from app.audit.logger import AuditLogger
         from app.safety.permission_engine import PermissionEngine
         from app.tools.impl.code_exec import make_local_code_exec
+        from app.tools.impl.web_fetch import make_web_fetch
+        from app.tools.impl.web_search import make_web_search
         from app.tools.manager import ToolManager
 
         tool_manager = ToolManager(
-            impls={"code_exec": make_local_code_exec()},
+            impls={
+                "code_exec": make_local_code_exec(),
+                "web_search": make_web_search(),
+                "web_fetch": make_web_fetch(),
+            },
             estop=estop,
             engine=PermissionEngine(max_level=settings.max_tool_level),
             approvals=approvals,
@@ -71,12 +78,21 @@ def create_app(
         )
     app.state.tool_manager = tool_manager
 
+    # --- orchestrator ---
+    from app.orchestrator.orchestrator import Orchestrator
+
+    app.state.orchestrator = Orchestrator(
+        llm=llm, tool_manager=tool_manager, estop=estop, settings=settings,
+        session_factory=session_factory,
+    )
+
     @app.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok", "env": settings.app_env}
 
     app.include_router(chat_router)
     app.include_router(safety_router)
+    app.include_router(orchestrator_router)
     return app
 
 

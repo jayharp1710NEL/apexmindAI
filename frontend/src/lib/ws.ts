@@ -60,3 +60,36 @@ export class ChatSocket {
     this.ws = null;
   }
 }
+
+// --- Orchestrated run socket: streams plan / step / token / done events. ---
+export interface RunEventHandlers {
+  onEvent: (event: Record<string, unknown> & { type: string }) => void;
+  onOpen?: () => void;
+  onClose?: () => void;
+}
+
+export class RunSocket {
+  private ws: WebSocket | null = null;
+
+  constructor(
+    private sessionId: string,
+    private handlers: RunEventHandlers,
+  ) {}
+
+  connect(): void {
+    const ws = new WebSocket(`${WS_BASE}/ws/run/${this.sessionId}`);
+    this.ws = ws;
+    ws.onopen = () => this.handlers.onOpen?.();
+    ws.onclose = () => this.handlers.onClose?.();
+    ws.onmessage = (e) => this.handlers.onEvent(JSON.parse(e.data));
+  }
+
+  start(goal: string): void {
+    this.ws?.send(JSON.stringify({ goal }));
+  }
+
+  close(): void {
+    this.ws?.close();
+    this.ws = null;
+  }
+}

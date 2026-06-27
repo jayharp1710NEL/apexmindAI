@@ -4,24 +4,20 @@
 > without re-deriving context. Update this at the end of every step.
 
 **Branch:** `claude/apexmind-ai-mvp-dw318u`
-**Last updated:** 2026-06-27, after Step 6.
-**Latest commit:** Step 6 — safety core (Tool Manager, permission engine, sandbox, E-STOP).
+**Last updated:** 2026-06-27, after Step 7.
+**Latest commit:** Step 7 — orchestrator + web tools.
 
 ---
 
 ## Where we are right now
 
-✅ **Step 1 — Scaffold** (commit `b481f9b`)
-✅ **Step 2 — DB migrations** (commit `84509ca`)
-✅ **Step 3 — LLM interface + router + adapters + prove script** (commit `f8f112e`)
-✅ **Step 4 — Append-only audit logger, wired inside the adapter base** (commit `be958a0`)
-✅ **Step 5 — WebSocket chat (stream + persist) + minimal Next.js chat screen** (commit `18f9aca`)
-✅ **Step 6 — Tool Manager + permission engine (L0–5) + sandbox code_exec (L2) + E-STOP + L≥3 approval**
-⏭️ **NEXT: Step 7 — Orchestrator: JSON plan → sequential steps under step/cost/time budget, E-STOP between steps + web_search/fetch (L1)**
+✅ **Step 1–6** (commits `b481f9b`, `84509ca`, `f8f112e`, `be958a0`, `18f9aca`, Step 6)
+✅ **Step 7 — Orchestrator (plan→step loop, budget, E-STOP between steps) + web_search/fetch (L1)**
+⏭️ **NEXT: Step 8 — RAG-lite: upload → chunk → embed → pgvector → retrieve top-k → cite [n]; "Unverified" when unsupported**
 
 Tree is clean; everything is pushed to `origin/claude/apexmind-ai-mvp-dw318u`.
-Test suite: **47 passing** (40 backend + 7 tool_worker sandbox).
-Frontend: `npm run build` succeeds.
+Test suite: **56 passing** (49 backend + 7 tool_worker sandbox).
+Frontend: `npm run build` succeeds (/, /chat, /runs).
 
 ---
 
@@ -35,8 +31,8 @@ Frontend: `npm run build` succeeds.
 | 4 | Audit logger, called from inside the adapter (every model call logged) | ✅ done |
 | 5 | FastAPI WebSocket chat (stream tokens + persist) + minimal Next.js chat | ✅ done |
 | 6 | Tool Manager + permission engine (L0–5) + Dockerized code_exec (L2) + E-STOP + L≥3 approval | ✅ done |
-| 7 | Orchestrator: JSON plan → sequential steps under step/cost/time budget, E-STOP between steps | ⏭️ **next** |
-| 8 | RAG-lite: upload→chunk→embed→pgvector→top-k→cite [n]; "Unverified" when unsupported | ⬜ |
+| 7 | Orchestrator: JSON plan → sequential steps under step/cost/time budget, E-STOP between steps | ✅ done |
+| 8 | RAG-lite: upload→chunk→embed→pgvector→top-k→cite [n]; "Unverified" when unsupported | ⏭️ **next** |
 | 9 | Memory-lite: project_facts persist + inject + viewer (list/delete) | ⬜ |
 | 10 | Self-eval: Critic JSON {issues, hallucination_risk, confidence}; revise once if high; scorecard | ⬜ |
 | 11 | Safety pre-screen on requests + tool calls; ignore+flag injected instructions | ⬜ |
@@ -202,7 +198,46 @@ approval** (spy never runs); also L2 auto-runs, L5 refused, E-STOP halts (incl. 
 approval-then-run works; sandbox runs real code with real stdout, blocks network, enforces timeout, caps
 output; e2e ToolManager→sandbox returns real output.
 
-## Next step in detail (Step 7 — pick up here)
+## Step 7 — DONE (what shipped)
+
+- `app/orchestrator/plan.py` — `Plan`/`PlanStep` schema (+ `tool_input`, `Plan.single`).
+- `app/orchestrator/budget.py` — `Budget` (steps/time hard caps; cost estimated via price table).
+- `app/prompts/registry.py` — `get_active_prompt` (DB `prompt_versions` if seeded, else seed file).
+- `app/orchestrator/planner.py` — `generate_plan` (structured_json + json_mode), robust `extract_json`,
+  degrades to single-step on bad output.
+- `app/orchestrator/orchestrator.py` — `Orchestrator.run`: persist run → plan → loop steps with
+  **E-STOP check before every step** + budget check → execute (tool steps via ToolManager so
+  permission/approval/audit apply; code_exec generates code if `tool_input` empty) → persist steps →
+  stream final synthesis (treats step outputs as untrusted DATA) → persist final + finish run. Emits
+  plan/step_start/step_result/token/done/halted/error events.
+- `app/tools/impl/web_fetch.py` + `web_search.py` (**L1**) — httpx fetch (HTML→text) + keyless DuckDuckGo
+  search; both return `untrusted: true` + `injection_flags`. Registered in the ToolManager.
+- `app/orchestrator/routes.py` + `main.py` — `WS /ws/run/{session_id}`; `app.state.orchestrator`.
+- Frontend `src/app/runs/page.tsx` + `RunSocket` — shows plan, per-step status, **real sandbox stdout**,
+  streamed answer, halted/cost status.
+
+**Verified:** 56 tests pass (49 backend + 7 sandbox). Orchestrator tests prove: plan runs and streams a
+final answer with **real sandbox stdout surfaced**; **E-STOP halts between steps** (step 2 never starts);
+**budget caps** the run; planner parses strict JSON and degrades gracefully. Frontend builds (/, /chat, /runs).
+
+## Next step in detail (Step 8 — pick up here)
+
+RAG-lite with citations:
+1. `app/rag/chunker.py` — split text into ~`CHUNK_SIZE_TOKENS` chunks w/ overlap (token-ish by words).
+2. `app/rag/ingest.py` — accept an uploaded file (text/markdown/PDF-as-text for MVP), persist `documents`,
+   chunk → `llm.embed()` → store `doc_chunks` with embedding (pgvector).
+3. `app/rag/retrieve.py` — embed the query, pgvector top-k (cosine `<=>`) over a project's chunks; return
+   chunks with ids + scores.
+4. `app/rag/answer.py` — build a grounded prompt: answer ONLY from retrieved chunks, cite as `[n]` mapping
+   to chunk ids; if no chunk supports a claim, output **"Unverified"**. Strict instruction + post-check.
+5. Routes: `POST /api/documents` (upload+ingest), `GET /api/documents`, `POST /api/rag/query`
+   (returns answer + citations). Frontend `src/app/documents/page.tsx` (upload + Q&A with citations).
+6. Tests (PG + pgvector, fake embeddings): ingest stores chunks w/ vectors; retrieve returns the relevant
+   chunk; answer cites `[n]`→chunk id; unsupported query yields "Unverified".
+
+Acceptance for Step 8: document Q&A cites chunk ids, and says "Unverified" when no chunk supports the claim.
+
+## (historical) Step 7 plan — pick up here
 
 Orchestrator + web tools end-to-end:
 1. `app/tools/impl/web_search.py` + `web_fetch.py` (**L1**): use WebFetch/an HTTP client; return results as
