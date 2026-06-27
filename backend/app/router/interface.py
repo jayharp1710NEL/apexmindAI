@@ -30,13 +30,31 @@ class LLMInterface:
     # -- construction ----------------------------------------------------- #
     @classmethod
     def from_settings(
-        cls, settings=default_settings, audit_hook: AuditHook | None = None
+        cls,
+        settings=default_settings,
+        audit_hook: AuditHook | None = None,
+        *,
+        enable_default_audit: bool = True,
     ) -> LLMInterface:
+        """Build the interface from settings.
+
+        If no `audit_hook` is supplied and `enable_default_audit` is True (the
+        production default), a hash-chained AuditLogger over the app DB session
+        factory is attached, so EVERY model call is logged from the first call.
+        Tests that have no database pass `enable_default_audit=False`.
+        """
         routing_path = Path(settings.routing_config_path)
         if not routing_path.is_absolute():
             # resolve relative to the backend root (parent of app/)
             routing_path = Path(__file__).resolve().parents[2] / routing_path
         routing = load_routing_config(routing_path)
+
+        if audit_hook is None and enable_default_audit:
+            from app.audit.logger import AuditLogger
+            from app.db.session import async_session_factory
+
+            audit_hook = AuditLogger(async_session_factory).model_audit_hook()
+
         adapters = build_adapters(settings, audit_hook=audit_hook)
         return cls(
             Router(adapters=adapters, routing=routing),

@@ -4,8 +4,8 @@
 > without re-deriving context. Update this at the end of every step.
 
 **Branch:** `claude/apexmind-ai-mvp-dw318u`
-**Last updated:** 2026-06-27, after Step 3.
-**Latest commit:** Step 3 — LLM interface + router + adapters.
+**Last updated:** 2026-06-27, after Step 4.
+**Latest commit:** Step 4 — append-only audit logger.
 
 ---
 
@@ -13,10 +13,12 @@
 
 ✅ **Step 1 — Scaffold** (commit `b481f9b`)
 ✅ **Step 2 — DB migrations** (commit `84509ca`)
-✅ **Step 3 — LLM interface + router + adapters + prove script**
-⏭️ **NEXT: Step 4 — Audit logger, wired INSIDE the adapter base (every model call logged)**
+✅ **Step 3 — LLM interface + router + adapters + prove script** (commit `f8f112e`)
+✅ **Step 4 — Append-only audit logger, wired inside the adapter base**
+⏭️ **NEXT: Step 5 — FastAPI WebSocket chat (stream + persist) + minimal Next.js chat screen**
 
 Tree is clean; everything is pushed to `origin/claude/apexmind-ai-mvp-dw318u`.
+Test suite: **17 passing** (10 router + 5 audit-pure + 2 audit-integration).
 
 ---
 
@@ -27,8 +29,8 @@ Tree is clean; everything is pushed to `origin/claude/apexmind-ai-mvp-dw318u`.
 | 1 | Scaffold repo + docker-compose + .env.example | ✅ done |
 | 2 | DB migrations (18 tables, pgvector, append-only audit) | ✅ done |
 | 3 | LLM interface `generate()/embed()` + router + Anthropic/OpenAI adapters + prove script | ✅ done |
-| 4 | Audit logger, called from inside the adapter (every model call logged) | ⏭️ **next** |
-| 5 | FastAPI WebSocket chat (stream tokens + persist) + minimal Next.js chat | ⬜ |
+| 4 | Audit logger, called from inside the adapter (every model call logged) | ✅ done |
+| 5 | FastAPI WebSocket chat (stream tokens + persist) + minimal Next.js chat | ⏭️ **next** |
 | 6 | Tool Manager + permission engine (L0–5) + Dockerized code_exec (L2) + E-STOP + L≥3 approval | ⬜ |
 | 7 | Orchestrator: JSON plan → sequential steps under step/cost/time budget, E-STOP between steps | ⬜ |
 | 8 | RAG-lite: upload→chunk→embed→pgvector→top-k→cite [n]; "Unverified" when unsupported | ⬜ |
@@ -117,12 +119,51 @@ docker stop apex-pg-test
 **Note:** `local` provider is built when `LOCAL_OPENAI_BASE_URL` is set but has no routing.yaml entry yet
 (local model IDs are deployment-specific) — add candidates there to route to it.
 
-## Next step in detail (Step 4 — pick up here)
+## Step 4 — DONE (what shipped)
 
-Wire the append-only audit logger so EVERY model call is logged from the start:
-1. `app/audit/logger.py` — `AuditLogger` that writes to `audit_log` with the hash chain
-   (`prev_hash`→`entry_hash`, sha256 over canonical row). Append-only (DB trigger already enforces it).
-2. Provide an async `audit_hook` built from the logger and pass it into `build_adapters(...)` /
-   `LLMInterface.from_settings(audit_hook=...)` so the base adapter's existing seam writes real rows.
-3. Helper to also log tool calls (used in Step 6).
-4. Tests: a model call produces request+response audit rows; hash chain links correctly; tampering breaks it.
+- `app/audit/logger.py`:
+  - `compute_entry_hash(...)` — pure SHA-256 over canonical row (`prev`, ts, actor, event_type,
+    session_id, payload). Deterministic, unit-testable without a DB.
+  - `verify_rows(rows)` / `AuditLogger.verify()` — recompute + check `prev_hash` links; returns
+    `ChainCheck(ok, count, first_broken_id, reason)`.
+  - `AuditLogger.append(...)` — serializes via `pg_advisory_xact_lock`, reads last `entry_hash`,
+    writes a chained row. `.model_audit_hook()` returns the async hook for `BaseAdapter`.
+    `.log_tool_call(...)` convenience ready for Step 6.
+- `app/router/interface.py` — `from_settings(..., enable_default_audit=True)`: in production it
+  auto-attaches an `AuditLogger` over `async_session_factory`, so the adapter base's audit seam writes
+  real rows for EVERY model call. Tests pass `enable_default_audit=False` (no DB needed).
+- Tests: `tests/test_audit.py` (5 pure) + `tests/test_audit_integration.py` (2 PG-backed, skip unless
+  `APEX_TEST_DATABASE_URL` set).
+
+**Verified against real Postgres:** a model call through BaseAdapter wrote `request`+`response` rows that
+verify; chain tamper + broken-link both detected; **UPDATE/DELETE on audit_log rejected** by the trigger.
+Full suite: 17 passed.
+
+### How to run the PG integration tests
+```bash
+docker run -d --rm --name apex-pg-test -e POSTGRES_USER=apex -e POSTGRES_PASSWORD=apex \
+  -e POSTGRES_DB=apexmind -p 5433:5432 pgvector/pgvector:pg16
+cd backend
+DATABASE_URL="postgresql+asyncpg://apex:apex@localhost:5433/apexmind" /tmp/apexvenv/bin/alembic upgrade head
+APEX_TEST_DATABASE_URL="postgresql+asyncpg://apex:apex@localhost:5433/apexmind" \
+  /tmp/apexvenv/bin/python -m pytest tests/ -q     # 17 passed
+docker stop apex-pg-test
+```
+
+## Next step in detail (Step 5 — pick up here)
+
+FastAPI WebSocket chat that streams tokens and persists, + a minimal Next.js chat screen:
+1. `app/deps.py` — shared singletons (LLMInterface.from_settings(), session dep, audit logger).
+2. Bootstrap helper to ensure a default user/project/session exist (dev convenience) OR accept
+   session_id from the client; persist user/assistant messages to `messages`.
+3. `app/main.py` — `GET /health` (exists) + `WS /ws/chat` that: receives a user message, persists it,
+   streams assistant tokens via `LLMInterface.stream(task_type="fast"|"reasoning")`, persists the full
+   assistant message at end. Treat model calls as audited automatically (Step 4).
+4. REST helpers: create/list sessions + fetch message history (`app/api/` or routes in main).
+5. Frontend: `frontend/src/lib/ws.ts` (WS client), `src/app/chat/page.tsx` (stream UI),
+   `globals.css`/`layout.tsx`. Consume `NEXT_PUBLIC_API_BASE`.
+6. Tests: a WS chat test using FastAPI TestClient with a fake LLMInterface (stub stream) asserting
+   tokens stream and messages persist (use the PG test DB or a fake repo).
+
+Acceptance for Step 5: chat screen streams tokens from the WS; user+assistant messages land in `messages`;
+model calls show up in `audit_log`.
