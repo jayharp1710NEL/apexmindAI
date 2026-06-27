@@ -1,0 +1,20 @@
+[project]
+name = "apexmind-tool-worker"
+version = "0.1.0"
+description = "ApexMind AI — isolated, network-less, resource-limited code executor"
+requires-python = ">=3.11"
+# Deliberately minimal. The worker pulls jobs from Redis and runs untrusted code
+# in a hardened subprocess. No vendor SDKs, no network libraries for user code.
+dependencies = [
+    "redis>=5.0",
+    "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
