@@ -69,6 +69,49 @@ async def handle_turn(
         msg = await repo.add_message(
             s, session_id=session_id, role="assistant", content=text
         )
-        message_id = str(msg.id)
+        message_id = msg.id
 
-    await send({"type": "done", "message_id": message_id})
+    # 5) self-evaluation: attach a Critic scorecard; revise once if high risk.
+    final_text = text
+    if hasattr(llm, "generate"):
+        try:
+            final_text = await _self_eval_and_attach(
+                llm, session_factory, message_id, content, text, send
+            )
+        except Exception as exc:  # never let evaluation break the answer
+            await send({"type": "scorecard_error", "detail": str(exc)})
+
+    await send({"type": "done", "message_id": str(message_id)})
+
+
+async def _self_eval_and_attach(
+    llm, session_factory, message_id, question: str, draft: str, send: SendFn
+) -> str:
+    from app.agents.critic import self_evaluate
+
+    async def _revise(prev: str, card) -> str:
+        issues = "; ".join(card.issues) or "reduce unsupported claims"
+        resp = await llm.generate(
+            "reasoning",
+            system="Revise the answer to fix the listed issues. Be accurate and do "
+                   "not assert unsupported claims.",
+            prompt=f"Question: {question}\n\nDraft: {prev}\n\nIssues: {issues}\n\n"
+                   f"Return the improved answer only.",
+            max_tokens=800, temperature=0.3,
+        )
+        return resp.text.strip()
+
+    final_text, card = await self_evaluate(
+        llm, question=question, draft=draft, revise=_revise
+    )
+    scorecard = card.model_dump()
+    async with session_factory() as s, s.begin():
+        await repo.update_message(
+            s, message_id,
+            content=final_text if card.revised else None,
+            meta={"scorecard": scorecard},
+        )
+    if card.revised:
+        await send({"type": "revised", "content": final_text, "scorecard": scorecard})
+    await send({"type": "scorecard", "scorecard": scorecard})
+    return final_text

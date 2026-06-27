@@ -90,6 +90,22 @@ async def add_message(
     return msg
 
 
+async def update_message(
+    s: AsyncSession,
+    message_id: uuid.UUID,
+    *,
+    content: str | None = None,
+    meta: dict[str, Any] | None = None,
+) -> None:
+    msg = await s.get(Message, message_id)
+    if msg is None:
+        return
+    if content is not None:
+        msg.content = content
+    if meta is not None:
+        msg.meta = meta
+
+
 async def get_messages(s: AsyncSession, session_id: uuid.UUID) -> list[Message]:
     rows = await s.scalars(
         select(Message)

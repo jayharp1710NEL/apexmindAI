@@ -83,3 +83,50 @@ def test_ws_unknown_session_errors(client):
     with client.websocket_connect(f"/ws/chat/{uuid.uuid4()}") as ws:
         ev = ws.receive_json()
         assert ev["type"] == "error" and "not found" in ev["detail"]
+
+
+class FakeFullLLM:
+    """Streams tokens AND supports generate() so the Critic scorecard runs."""
+
+    async def stream(self, task_type, messages=None, **kw):
+        for tok in ["The ", "answer."]:
+            yield tok
+
+    async def generate(self, task_type, **kw):
+        from app.router.types import LLMResponse, Usage
+
+        # critic asks for json -> return a low-risk scorecard
+        return LLMResponse(
+            text='{"issues":[],"hallucination_risk":"low","confidence":0.9,'
+                 '"needs_revision":false}',
+            model="m", provider="fake", usage=Usage(),
+        )
+
+
+@pytest.fixture()
+def client_with_critic():
+    engine = create_async_engine(TEST_DB)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    app = create_app(llm=FakeFullLLM(), session_factory=factory)
+    with TestClient(app) as c:
+        yield c
+
+
+def test_every_answer_gets_a_scorecard(client_with_critic):
+    c = client_with_critic
+    sid = c.post("/api/sessions", json={"title": "s"}).json()["id"]
+    saw_scorecard = False
+    with c.websocket_connect(f"/ws/chat/{sid}") as ws:
+        ws.send_json({"type": "user_message", "content": "hi"})
+        while True:
+            ev = ws.receive_json()
+            if ev["type"] == "scorecard":
+                saw_scorecard = True
+                assert ev["scorecard"]["hallucination_risk"] == "low"
+            if ev["type"] == "done":
+                break
+    assert saw_scorecard
+    # scorecard persisted on the assistant message meta
+    msgs = c.get(f"/api/sessions/{sid}/messages").json()
+    assistant = [m for m in msgs if m["role"] == "assistant"][-1]
+    assert assistant["meta"]["scorecard"]["confidence"] == 0.9

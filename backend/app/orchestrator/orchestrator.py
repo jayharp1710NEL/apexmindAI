@@ -92,11 +92,12 @@ class Orchestrator:
             await self._save_step(run_id, step, out)
             await emit({"type": "step_result", "id": step.id, **out})
 
-        # --- final synthesis (streamed) ---
+        # --- final synthesis (streamed) + self-evaluation ---
         final_text = ""
         if status == "completed":
             final_text = await self._synthesize(goal, step_outputs, emit)
-            await self._persist_final(session_id, final_text)
+            scorecard = await self._score(goal, final_text, emit)
+            await self._persist_final(session_id, final_text, scorecard)
             await emit({"type": "done", "cost_usd": round(budget.cost_usd, 6),
                         "steps_used": budget.steps_used})
         await self._finish_run(run_id, status, budget)
@@ -153,6 +154,21 @@ class Orchestrator:
                 code = code[6:]
         return code.strip()
 
+    async def _score(self, goal: str, final_text: str, emit: EmitFn) -> dict | None:
+        if not final_text or not hasattr(self.llm, "generate"):
+            return None
+        try:
+            from app.agents.critic import critique
+
+            card = await critique(self.llm, question=goal, draft=final_text,
+                                  session_factory=self.session_factory)
+            scorecard = card.model_dump()
+            await emit({"type": "scorecard", "scorecard": scorecard})
+            return scorecard
+        except Exception as exc:  # evaluation must never break the run
+            logger.warning("scorecard failed: %r", exc)
+            return None
+
     async def _synthesize(self, goal: str, outputs: list[str], emit: EmitFn) -> str:
         context = "\n".join(outputs) if outputs else "(no intermediate steps)"
         messages = [
@@ -208,15 +224,18 @@ class Orchestrator:
                 output={k: v for k, v in out.items() if k != "summary"},
             ))
 
-    async def _persist_final(self, session_id, text: str) -> None:
+    async def _persist_final(self, session_id, text: str, scorecard=None) -> None:
         if self.session_factory is None or session_id is None or not text:
             return
         from app.chat import repository as repo
 
+        meta = {"source": "orchestrator"}
+        if scorecard is not None:
+            meta["scorecard"] = scorecard
         async with self.session_factory() as s, s.begin():
             await repo.add_message(
                 s, session_id=uuid.UUID(str(session_id)), role="assistant",
-                content=text, meta={"source": "orchestrator"},
+                content=text, meta=meta,
             )
 
     async def _finish_run(self, run_id, status, budget) -> None:
