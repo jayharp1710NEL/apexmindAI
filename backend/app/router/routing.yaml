@@ -1,53 +1,43 @@
 # routing.yaml — task_type -> ordered model candidates (with fallback on error).
 #
-# This file is the ONLY place the default model is chosen. Switching models is a
-# config change here; no application code changes. Each candidate names a
-# provider (which maps to an adapter under app/router/adapters/) and a model id.
-# The router tries candidates in order and falls back to the next on error.
+# This file is the ONLY place models are chosen. Switching models is a config change
+# here; no application code changes. Each candidate names a provider (mapped to an
+# adapter under app/router/adapters/) and a model id. Providers without an API key
+# in the environment are skipped automatically.
 #
-# Providers are enabled only if their API key is present in the environment.
+# CURRENT CONFIG: OpenAI ONLY. To re-enable other providers, add candidates back
+# and set their API keys in the environment — still a config-only change.
 
 version: 1
-default_provider: anthropic
+default_provider: openai
 
 task_types:
   reasoning:
-    - { provider: anthropic, model: claude-opus-4-8 }
-    - { provider: openai,    model: gpt-4o }
-    - { provider: google,    model: gemini-1.5-pro }
+    - { provider: openai, model: gpt-4o }
 
   coding:
-    - { provider: anthropic, model: claude-opus-4-8 }
-    - { provider: openai,    model: gpt-4o }
+    - { provider: openai, model: gpt-4o }
 
   fast:
-    - { provider: anthropic, model: claude-haiku-4-5-20251001 }
-    - { provider: openai,    model: gpt-4o-mini }
+    - { provider: openai, model: gpt-4o-mini }
 
   long_context:
-    - { provider: google,    model: gemini-1.5-pro }
-    - { provider: anthropic, model: claude-sonnet-4-6 }
+    - { provider: openai, model: gpt-4o }
 
   summarize:
-    - { provider: anthropic, model: claude-haiku-4-5-20251001 }
-    - { provider: openai,    model: gpt-4o-mini }
+    - { provider: openai, model: gpt-4o-mini }
 
   embeddings:
-    - { provider: openai,    model: text-embedding-3-small }
-    - { provider: google,    model: text-embedding-004 }
+    - { provider: openai, model: text-embedding-3-small }
 
   vision_doc:
-    - { provider: anthropic, model: claude-sonnet-4-6 }
-    - { provider: openai,    model: gpt-4o }
+    - { provider: openai, model: gpt-4o }
 
   structured_json:
-    - { provider: anthropic, model: claude-sonnet-4-6 }
-    - { provider: openai,    model: gpt-4o }
+    - { provider: openai, model: gpt-4o }
 
   critique:
-    - { provider: anthropic, model: claude-sonnet-4-6 }
-    - { provider: openai,    model: gpt-4o }
+    - { provider: openai, model: gpt-4o }
 
   grading:
-    - { provider: anthropic, model: claude-sonnet-4-6 }
-    - { provider: openai,    model: gpt-4o-mini }
+    - { provider: openai, model: gpt-4o-mini }
