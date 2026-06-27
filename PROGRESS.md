@@ -4,8 +4,8 @@
 > without re-deriving context. Update this at the end of every step.
 
 **Branch:** `claude/apexmind-ai-mvp-dw318u`
-**Last updated:** 2026-06-27, after Step 4.
-**Latest commit:** Step 4 — append-only audit logger.
+**Last updated:** 2026-06-27, after Step 5.
+**Latest commit:** Step 5 — WebSocket chat + Next.js UI.
 
 ---
 
@@ -14,11 +14,13 @@
 ✅ **Step 1 — Scaffold** (commit `b481f9b`)
 ✅ **Step 2 — DB migrations** (commit `84509ca`)
 ✅ **Step 3 — LLM interface + router + adapters + prove script** (commit `f8f112e`)
-✅ **Step 4 — Append-only audit logger, wired inside the adapter base**
-⏭️ **NEXT: Step 5 — FastAPI WebSocket chat (stream + persist) + minimal Next.js chat screen**
+✅ **Step 4 — Append-only audit logger, wired inside the adapter base** (commit `be958a0`)
+✅ **Step 5 — WebSocket chat (stream + persist) + minimal Next.js chat screen**
+⏭️ **NEXT: Step 6 — Tool Manager + permission engine (L0–5) + Dockerized code_exec (L2) + E-STOP + L≥3 approval**
 
 Tree is clean; everything is pushed to `origin/claude/apexmind-ai-mvp-dw318u`.
-Test suite: **17 passing** (10 router + 5 audit-pure + 2 audit-integration).
+Test suite: **19 passing** (10 router + 5 audit-pure + 2 audit-integration + 2 chat-ws).
+Frontend: `npm run build` succeeds (home + /chat routes).
 
 ---
 
@@ -30,8 +32,8 @@ Test suite: **17 passing** (10 router + 5 audit-pure + 2 audit-integration).
 | 2 | DB migrations (18 tables, pgvector, append-only audit) | ✅ done |
 | 3 | LLM interface `generate()/embed()` + router + Anthropic/OpenAI adapters + prove script | ✅ done |
 | 4 | Audit logger, called from inside the adapter (every model call logged) | ✅ done |
-| 5 | FastAPI WebSocket chat (stream tokens + persist) + minimal Next.js chat | ⏭️ **next** |
-| 6 | Tool Manager + permission engine (L0–5) + Dockerized code_exec (L2) + E-STOP + L≥3 approval | ⬜ |
+| 5 | FastAPI WebSocket chat (stream tokens + persist) + minimal Next.js chat | ✅ done |
+| 6 | Tool Manager + permission engine (L0–5) + Dockerized code_exec (L2) + E-STOP + L≥3 approval | ⏭️ **next** |
 | 7 | Orchestrator: JSON plan → sequential steps under step/cost/time budget, E-STOP between steps | ⬜ |
 | 8 | RAG-lite: upload→chunk→embed→pgvector→top-k→cite [n]; "Unverified" when unsupported | ⬜ |
 | 9 | Memory-lite: project_facts persist + inject + viewer (list/delete) | ⬜ |
@@ -150,20 +152,48 @@ APEX_TEST_DATABASE_URL="postgresql+asyncpg://apex:apex@localhost:5433/apexmind" 
 docker stop apex-pg-test
 ```
 
-## Next step in detail (Step 5 — pick up here)
+## Step 5 — DONE (what shipped)
 
-FastAPI WebSocket chat that streams tokens and persists, + a minimal Next.js chat screen:
-1. `app/deps.py` — shared singletons (LLMInterface.from_settings(), session dep, audit logger).
-2. Bootstrap helper to ensure a default user/project/session exist (dev convenience) OR accept
-   session_id from the client; persist user/assistant messages to `messages`.
-3. `app/main.py` — `GET /health` (exists) + `WS /ws/chat` that: receives a user message, persists it,
-   streams assistant tokens via `LLMInterface.stream(task_type="fast"|"reasoning")`, persists the full
-   assistant message at end. Treat model calls as audited automatically (Step 4).
-4. REST helpers: create/list sessions + fetch message history (`app/api/` or routes in main).
-5. Frontend: `frontend/src/lib/ws.ts` (WS client), `src/app/chat/page.tsx` (stream UI),
-   `globals.css`/`layout.tsx`. Consume `NEXT_PUBLIC_API_BASE`.
-6. Tests: a WS chat test using FastAPI TestClient with a fake LLMInterface (stub stream) asserting
-   tokens stream and messages persist (use the PG test DB or a fake repo).
+Backend (new `app/chat/` package + `app/deps.py`):
+- `app/deps.py` — read `llm` / `session_factory` off `app.state` (injectable in tests).
+- `app/chat/schemas.py` — REST + WS payloads (UserMessageIn; Start/Token/Done/Error events).
+- `app/chat/repository.py` — users/projects/sessions/messages persistence; `get_or_create_default_context`
+  (dev user `dev@apexmind.local` + `Default` project so the UI needs no auth flow yet).
+- `app/chat/service.py` — `handle_turn`: persist user msg → load history → `llm.stream(task_type)` emitting
+  token events → persist full assistant msg → `done`. Errors surface as an `error` event (never hidden).
+- `app/chat/routes.py` — REST `POST/GET /api/sessions`, `GET /api/sessions/{id}/messages`; `WS /ws/chat/{session_id}`.
+- `app/main.py` — `create_app(llm=None, session_factory=None)`: CORS, wires `app.state`, mounts chat router.
+  Model calls auto-audited via Step 4 (default interface attaches the audit hook).
 
-Acceptance for Step 5: chat screen streams tokens from the WS; user+assistant messages land in `messages`;
-model calls show up in `audit_log`.
+Frontend (Next.js):
+- `src/lib/api.ts` (REST + base URLs), `src/lib/ws.ts` (`ChatSocket`), `src/lib/utils.ts` (`cn`).
+- `src/app/layout.tsx`, `globals.css` (dark theme), `page.tsx` (landing), `chat/page.tsx`
+  (streaming chat UI: live token append, connection status, disabled-while-streaming).
+
+**Verified:** WS test (real PG + fake streaming LLM) — tokens stream in order, user+assistant persist;
+unknown-session → error event. Full backend suite **19 passed**. Frontend `tsc --noEmit` clean and
+`next build` succeeds. Next bumped to patched `^14.2.35` (CVE in 14.2.5).
+
+WS protocol: client → `{type:"user_message", content, task_type}`; server → `{type:"start"}`,
+`{type:"token", content}`…, `{type:"done", message_id}` or `{type:"error", detail}`.
+
+## Next step in detail (Step 6 — pick up here)
+
+Tool Manager + permission engine + sandboxed code_exec + E-STOP + approval gate:
+1. `app/safety/estop.py` — global E-STOP backed by Redis key `settings.estop_key` (engage/clear/is_engaged);
+   in-memory fallback if Redis absent (for tests).
+2. `app/safety/permission_engine.py` — Levels 0–5. Decision for a (tool, level): L0–2 auto-allow (subject to
+   E-STOP), **L3–4 require explicit human approval**, **L5 always refused**. Returns allow/deny/needs_approval.
+3. `app/safety/approvals.py` — approval registry: create pending approval (id), `await` an asyncio.Event with
+   timeout (`APPROVAL_TIMEOUT_SECONDS`) → auto-deny on timeout; `resolve(id, approved)` from an API route.
+4. `app/tools/schema.py` (ToolCall/ToolResult), `app/tools/registry.py` (name→level), `app/tools/manager.py`
+   (dispatch: prescreen via permission engine → E-STOP check → run impl → log via `AuditLogger.log_tool_call`
+   + persist `tool_results`).
+5. `app/tools/impl/code_exec.py` (**L2**) — enqueue job to Redis for the tool_worker; await result.
+6. `tool_worker/worker.py` + `executor.py` — pull job, run untrusted code in a subprocess with **no network**,
+   rlimits (CPU/mem via `resource`), timeout, output cap; return stdout/stderr/returncode.
+7. **Unit test proving a Level-3 action does NOT execute without approval** (acceptance), plus E-STOP halts,
+   L5 refused, L2 allowed.
+
+Acceptance for Step 6: L3 pauses for approval and won't run unapproved; code runs sandboxed (no net) with real
+stdout; E-STOP flag halts; every tool call audited + in `tool_results`.
