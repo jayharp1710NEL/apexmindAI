@@ -1,0 +1,95 @@
+"""LLMInterface — the single entry point the application uses for model calls.
+
+The rest of the codebase calls `llm.generate(task_type=...)` / `llm.embed(...)` and
+never touches an adapter or vendor SDK directly. The interface owns a Router, which
+selects the concrete model from routing.yaml. Default-model changes are config-only.
+"""
+
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from pathlib import Path
+
+from app.config import settings as default_settings
+from app.router.adapters.base import AuditHook
+from app.router.router import Router, build_adapters, load_routing_config
+from app.router.types import (
+    EmbedRequest,
+    EmbedResponse,
+    LLMRequest,
+    LLMResponse,
+    Message,
+)
+
+
+class LLMInterface:
+    def __init__(self, router: Router, embedding_task_type: str = "embeddings") -> None:
+        self._router = router
+        self._embedding_task_type = embedding_task_type
+
+    # -- construction ----------------------------------------------------- #
+    @classmethod
+    def from_settings(
+        cls, settings=default_settings, audit_hook: AuditHook | None = None
+    ) -> LLMInterface:
+        routing_path = Path(settings.routing_config_path)
+        if not routing_path.is_absolute():
+            # resolve relative to the backend root (parent of app/)
+            routing_path = Path(__file__).resolve().parents[2] / routing_path
+        routing = load_routing_config(routing_path)
+        adapters = build_adapters(settings, audit_hook=audit_hook)
+        return cls(
+            Router(adapters=adapters, routing=routing),
+            embedding_task_type=settings.embedding_task_type,
+        )
+
+    # -- generation ------------------------------------------------------- #
+    async def generate(
+        self,
+        task_type: str,
+        messages: list[Message] | None = None,
+        *,
+        prompt: str | None = None,
+        system: str | None = None,
+        max_tokens: int = 1024,
+        temperature: float = 0.7,
+        json_mode: bool = False,
+        stop: list[str] | None = None,
+    ) -> LLMResponse:
+        req = LLMRequest(
+            messages=messages or [Message(role="user", content=prompt or "")],
+            system=system,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            json_mode=json_mode,
+            stop=stop,
+        )
+        return await self._router.generate(task_type, req)
+
+    async def stream(
+        self,
+        task_type: str,
+        messages: list[Message] | None = None,
+        *,
+        prompt: str | None = None,
+        system: str | None = None,
+        max_tokens: int = 1024,
+        temperature: float = 0.7,
+        json_mode: bool = False,
+    ) -> AsyncIterator[str]:
+        req = LLMRequest(
+            messages=messages or [Message(role="user", content=prompt or "")],
+            system=system,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            json_mode=json_mode,
+        )
+        async for delta in self._router.stream(task_type, req):
+            yield delta
+
+    # -- embeddings ------------------------------------------------------- #
+    async def embed(
+        self, inputs: list[str], *, task_type: str | None = None
+    ) -> EmbedResponse:
+        req = EmbedRequest(inputs=inputs)
+        return await self._router.embed(task_type or self._embedding_task_type, req)

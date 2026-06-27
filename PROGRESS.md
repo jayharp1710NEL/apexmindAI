@@ -4,8 +4,8 @@
 > without re-deriving context. Update this at the end of every step.
 
 **Branch:** `claude/apexmind-ai-mvp-dw318u`
-**Last updated:** 2026-06-27, after Step 2.
-**Latest commit:** `84509ca` — Step 2: DB layer + initial migration.
+**Last updated:** 2026-06-27, after Step 3.
+**Latest commit:** Step 3 — LLM interface + router + adapters.
 
 ---
 
@@ -13,7 +13,8 @@
 
 ✅ **Step 1 — Scaffold** (commit `b481f9b`)
 ✅ **Step 2 — DB migrations** (commit `84509ca`)
-⏭️ **NEXT: Step 3 — Internal LLM interface + router + Anthropic/OpenAI adapters + `prove_model_agnostic.py`**
+✅ **Step 3 — LLM interface + router + adapters + prove script**
+⏭️ **NEXT: Step 4 — Audit logger, wired INSIDE the adapter base (every model call logged)**
 
 Tree is clean; everything is pushed to `origin/claude/apexmind-ai-mvp-dw318u`.
 
@@ -25,8 +26,8 @@ Tree is clean; everything is pushed to `origin/claude/apexmind-ai-mvp-dw318u`.
 |---|------|--------|
 | 1 | Scaffold repo + docker-compose + .env.example | ✅ done |
 | 2 | DB migrations (18 tables, pgvector, append-only audit) | ✅ done |
-| 3 | LLM interface `generate()/embed()` + router + Anthropic/OpenAI adapters + prove script | ⏭️ **next** |
-| 4 | Audit logger, called from inside the adapter (every model call logged) | ⬜ |
+| 3 | LLM interface `generate()/embed()` + router + Anthropic/OpenAI adapters + prove script | ✅ done |
+| 4 | Audit logger, called from inside the adapter (every model call logged) | ⏭️ **next** |
 | 5 | FastAPI WebSocket chat (stream tokens + persist) + minimal Next.js chat | ⬜ |
 | 6 | Tool Manager + permission engine (L0–5) + Dockerized code_exec (L2) + E-STOP + L≥3 approval | ⬜ |
 | 7 | Orchestrator: JSON plan → sequential steps under step/cost/time budget, E-STOP between steps | ⬜ |
@@ -95,19 +96,33 @@ docker stop apex-pg-test
 
 ---
 
-## Next step in detail (Step 3 — pick up here)
+## Step 3 — DONE (what shipped)
 
-Implement, with tests:
-1. `app/router/types.py` — `Message`, `LLMRequest`, `LLMResponse`, `Usage`, `EmbedRequest/Response`.
-2. `app/router/adapters/base.py` — `BaseAdapter` ABC (`generate`, `embed`); the ONLY vendor boundary.
-   (Audit logging gets wired *inside here* in Step 4 — leave the hook point.)
-3. `app/router/adapters/anthropic.py`, `openai.py` — real SDK calls, keys from env.
-   (google.py + openai_compatible.py can be stubbed now, completed later.)
-4. `app/router/interface.py` — `LLMInterface.generate()/embed()`; sole entry point for the app.
-5. `app/router/router.py` — load `routing.yaml`, map task_type → ordered candidates, skip providers
-   with no API key, fall back to next candidate on error. **Unit-tested** (mock adapters; assert
-   fallback order + that disabled providers are skipped).
-6. `scripts/prove_model_agnostic.py` — print a completion from each configured provider via the router.
+- `app/router/types.py` — `Message`, `LLMRequest`, `LLMResponse`, `Usage`, `EmbedRequest/Response` (no SDK).
+- `app/router/adapters/base.py` — `BaseAdapter` ABC, the ONLY vendor boundary. `generate()/embed()` are
+  **audited template methods**: they emit request/response/error events via `self._audit_hook`
+  (no-op until Step 4 attaches the DB sink). `_generate/_embed` are the abstract provider methods.
+- `app/router/adapters/{anthropic,openai,google}.py` — real adapters, **SDKs lazy-imported** inside methods
+  (modules import fine without SDKs). `openai.py` also defines `OpenAICompatibleAdapter` (provider `local`).
+- `app/router/router.py` — `Router` loads routing.yaml, resolves task_type→candidates, **skips providers
+  with no adapter/key**, **falls back on error**; `build_adapters(settings, audit_hook)` builds only enabled
+  providers. Errors: `NoAvailableProvider`, `AllCandidatesFailed`.
+- `app/router/interface.py` — `LLMInterface.from_settings()`, `.generate()/.stream()/.embed()`; the app's sole entry point.
+- `scripts/prove_model_agnostic.py` — prints a completion per configured provider (self-bootstraps sys.path).
+- `backend/tests/test_router.py` — **10 tests pass**: candidate order, disabled-provider skip, first-success,
+  fallback-on-error, all-fail detail, no-provider, default-model-is-config-only, audit hook fires on every
+  call, audit records errors, stream fallback-before-first-token.
 
-Acceptance for Step 3: `router()` unit tests pass; switching default model is a routing.yaml change;
-no vendor SDK imported outside `app/router/adapters/`.
+**Verified:** `pytest tests/ -q` → 10 passed; adapters import without SDKs; prove script no-keys path works.
+**Note:** `local` provider is built when `LOCAL_OPENAI_BASE_URL` is set but has no routing.yaml entry yet
+(local model IDs are deployment-specific) — add candidates there to route to it.
+
+## Next step in detail (Step 4 — pick up here)
+
+Wire the append-only audit logger so EVERY model call is logged from the start:
+1. `app/audit/logger.py` — `AuditLogger` that writes to `audit_log` with the hash chain
+   (`prev_hash`→`entry_hash`, sha256 over canonical row). Append-only (DB trigger already enforces it).
+2. Provide an async `audit_hook` built from the logger and pass it into `build_adapters(...)` /
+   `LLMInterface.from_settings(audit_hook=...)` so the base adapter's existing seam writes real rows.
+3. Helper to also log tool calls (used in Step 6).
+4. Tests: a model call produces request+response audit rows; hash chain links correctly; tampering breaks it.
