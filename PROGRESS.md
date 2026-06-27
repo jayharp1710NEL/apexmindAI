@@ -4,8 +4,8 @@
 > without re-deriving context. Update this at the end of every step.
 
 **Branch:** `claude/apexmind-ai-mvp-dw318u`
-**Last updated:** 2026-06-27, after Step 5.
-**Latest commit:** Step 5 — WebSocket chat + Next.js UI.
+**Last updated:** 2026-06-27, after Step 6.
+**Latest commit:** Step 6 — safety core (Tool Manager, permission engine, sandbox, E-STOP).
 
 ---
 
@@ -15,12 +15,13 @@
 ✅ **Step 2 — DB migrations** (commit `84509ca`)
 ✅ **Step 3 — LLM interface + router + adapters + prove script** (commit `f8f112e`)
 ✅ **Step 4 — Append-only audit logger, wired inside the adapter base** (commit `be958a0`)
-✅ **Step 5 — WebSocket chat (stream + persist) + minimal Next.js chat screen**
-⏭️ **NEXT: Step 6 — Tool Manager + permission engine (L0–5) + Dockerized code_exec (L2) + E-STOP + L≥3 approval**
+✅ **Step 5 — WebSocket chat (stream + persist) + minimal Next.js chat screen** (commit `18f9aca`)
+✅ **Step 6 — Tool Manager + permission engine (L0–5) + sandbox code_exec (L2) + E-STOP + L≥3 approval**
+⏭️ **NEXT: Step 7 — Orchestrator: JSON plan → sequential steps under step/cost/time budget, E-STOP between steps + web_search/fetch (L1)**
 
 Tree is clean; everything is pushed to `origin/claude/apexmind-ai-mvp-dw318u`.
-Test suite: **19 passing** (10 router + 5 audit-pure + 2 audit-integration + 2 chat-ws).
-Frontend: `npm run build` succeeds (home + /chat routes).
+Test suite: **47 passing** (40 backend + 7 tool_worker sandbox).
+Frontend: `npm run build` succeeds.
 
 ---
 
@@ -33,8 +34,8 @@ Frontend: `npm run build` succeeds (home + /chat routes).
 | 3 | LLM interface `generate()/embed()` + router + Anthropic/OpenAI adapters + prove script | ✅ done |
 | 4 | Audit logger, called from inside the adapter (every model call logged) | ✅ done |
 | 5 | FastAPI WebSocket chat (stream tokens + persist) + minimal Next.js chat | ✅ done |
-| 6 | Tool Manager + permission engine (L0–5) + Dockerized code_exec (L2) + E-STOP + L≥3 approval | ⏭️ **next** |
-| 7 | Orchestrator: JSON plan → sequential steps under step/cost/time budget, E-STOP between steps | ⬜ |
+| 6 | Tool Manager + permission engine (L0–5) + Dockerized code_exec (L2) + E-STOP + L≥3 approval | ✅ done |
+| 7 | Orchestrator: JSON plan → sequential steps under step/cost/time budget, E-STOP between steps | ⏭️ **next** |
 | 8 | RAG-lite: upload→chunk→embed→pgvector→top-k→cite [n]; "Unverified" when unsupported | ⬜ |
 | 9 | Memory-lite: project_facts persist + inject + viewer (list/delete) | ⬜ |
 | 10 | Self-eval: Critic JSON {issues, hallucination_risk, confidence}; revise once if high; scorecard | ⬜ |
@@ -177,7 +178,51 @@ unknown-session → error event. Full backend suite **19 passed**. Frontend `tsc
 WS protocol: client → `{type:"user_message", content, task_type}`; server → `{type:"start"}`,
 `{type:"token", content}`…, `{type:"done", message_id}` or `{type:"error", detail}`.
 
-## Next step in detail (Step 6 — pick up here)
+## Step 6 — DONE (what shipped)
+
+- `app/safety/permission_engine.py` — pure `PermissionEngine.decide(level, estop_engaged)` →
+  ALLOW (0–2) / NEEDS_APPROVAL (3–4) / DENY (5, invalid, estop, or above `max_level`). `max_level`
+  clamped to ≤4 so L5 is always refused.
+- `app/safety/estop.py` — `EStop` Redis-backed global switch with graceful in-memory fallback
+  (`from_settings` guards the redis import). engage/clear/is_engaged.
+- `app/safety/approvals.py` — `ApprovalRegistry`: request → asyncio.Event wait (timeout = auto-DENY) →
+  resolve(approved). `pending()` for the UI.
+- `app/tools/{schema,registry,manager}.py` — `ToolManager.dispatch` runs the fixed safety sequence:
+  level lookup → E-STOP → permission decision → (approval, timeout=deny) → **re-check E-STOP after
+  approval** → execute → audit (`log_tool_call`) + persist `tool_results`. Tool body only reached on ALLOW.
+- `app/tools/impl/code_exec.py` — L2; `make_local_code_exec` (in-process sandbox, dev/tests) +
+  `make_redis_code_exec` (enqueue to worker, await result).
+- `tool_worker/executor.py` — `run_code`: subprocess, socket-disabled preamble, RLIMIT_CPU/AS/FSIZE,
+  wall-timeout kill, clean env (no host secrets), output cap. `tool_worker/worker.py` — Redis job loop.
+- `app/safety/routes.py` + `main.py` wiring — `/api/safety/estop[/engage|/clear]`,
+  `/api/safety/approvals[/{id}/resolve]`; `app.state` now has `estop`, `approvals`, `tool_manager`.
+
+**Verified:** 47 tests pass. Headline acceptance proven: **Level-3 action does NOT execute without
+approval** (spy never runs); also L2 auto-runs, L5 refused, E-STOP halts (incl. engaged-during-approval),
+approval-then-run works; sandbox runs real code with real stdout, blocks network, enforces timeout, caps
+output; e2e ToolManager→sandbox returns real output.
+
+## Next step in detail (Step 7 — pick up here)
+
+Orchestrator + web tools end-to-end:
+1. `app/tools/impl/web_search.py` + `web_fetch.py` (**L1**): use WebFetch/an HTTP client; return results as
+   untrusted DATA (wrap content, strip/flag any embedded instructions — full prescreen is Step 11).
+   Register them in ToolManager impls.
+2. `app/orchestrator/budget.py` — track steps/cost/time vs `MAX_STEPS`/`MAX_RUN_SECONDS`/`MAX_RUN_COST_USD`.
+3. `app/orchestrator/planner.py` — call the LLM (task_type `structured_json`) with the orchestrator prompt
+   to produce a strict-JSON plan; parse + validate against a Pydantic Plan schema.
+4. `app/orchestrator/orchestrator.py` — for a complex goal: persist a `runs` row, generate plan, execute
+   `steps` sequentially via ToolManager, **check E-STOP between steps**, enforce budget, persist each `step`,
+   stream progress events. Simple goals can skip planning (single answer step).
+5. WS/REST surface: a way to start an orchestrated run and stream plan + step + sandbox-stdout events to the
+   UI; show real sandbox stdout in the Runs view (`frontend/src/app/runs/page.tsx`).
+6. Tests: planner parses strict JSON (fake LLM); orchestrator stops on E-STOP between steps; budget caps the
+   run; a code_exec step shows real stdout.
+
+Acceptance for Step 7: complex goal → plan-based streamed answer; steps run under budget; E-STOP halts a run
+between steps; real sandbox stdout surfaced.
+
+## (historical) Step 6 plan — pick up here
 
 Tool Manager + permission engine + sandboxed code_exec + E-STOP + approval gate:
 1. `app/safety/estop.py` — global E-STOP backed by Redis key `settings.estop_key` (engage/clear/is_engaged);
