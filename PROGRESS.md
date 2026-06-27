@@ -4,8 +4,8 @@
 > without re-deriving context. Update this at the end of every step.
 
 **Branch:** `claude/apexmind-ai-mvp-dw318u`
-**Last updated:** 2026-06-27, after Step 10.
-**Latest commit:** Step 10 — Critic self-eval.
+**Last updated:** 2026-06-27, after Step 11.
+**Latest commit:** Step 11 — safety pre-screen.
 
 ---
 
@@ -15,11 +15,12 @@
 ✅ **Step 7 — Orchestrator + web tools**
 ✅ **Step 8 — RAG-lite (cite [n]; "Unverified")**
 ✅ **Step 9 — Memory-lite**
-✅ **Step 10 — Self-eval: Critic scorecard {issues, hallucination_risk, confidence}; revise once if high**
-⏭️ **NEXT: Step 11 — Safety pre-screen on requests + tool calls; ignore+flag injected instructions**
+✅ **Step 10 — Self-eval Critic scorecard**
+✅ **Step 11 — Safety pre-screen: refuse harm, allow benign look-alikes, flag injected instructions**
+⏭️ **NEXT: Step 12 — Benchmark runner (≥10 objective tests) + "Run suite" results view**
 
 Tree is clean; everything is pushed to `origin/claude/apexmind-ai-mvp-dw318u`.
-Test suite: **69 passing** (62 backend + 7 tool_worker sandbox).
+Test suite: **82 passing** (75 backend + 7 tool_worker sandbox).
 Frontend: `npm run build` succeeds (/, /chat, /runs, /documents, /memory).
 
 ---
@@ -38,8 +39,8 @@ Frontend: `npm run build` succeeds (/, /chat, /runs, /documents, /memory).
 | 8 | RAG-lite: upload→chunk→embed→pgvector→top-k→cite [n]; "Unverified" when unsupported | ✅ done |
 | 9 | Memory-lite: project_facts persist + inject + viewer (list/delete) | ✅ done |
 | 10 | Self-eval: Critic JSON {issues, hallucination_risk, confidence}; revise once if high; scorecard | ✅ done |
-| 11 | Safety pre-screen on requests + tool calls; ignore+flag injected instructions | ⏭️ **next** |
-| 12 | Benchmark runner ≥10 objective tests + "Run suite" view | ⬜ |
+| 11 | Safety pre-screen on requests + tool calls; ignore+flag injected instructions | ✅ done |
+| 12 | Benchmark runner ≥10 objective tests + "Run suite" view | ⏭️ **next** |
 
 ---
 

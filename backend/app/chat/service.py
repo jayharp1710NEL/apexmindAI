@@ -30,6 +30,31 @@ async def handle_turn(
     task_type: str,
     send: SendFn,
 ) -> None:
+    # 0) safety pre-screen — refuse clear harm before any model call
+    from app.safety.incidents import log_incident
+    from app.safety.prescreen import REFUSAL_MESSAGE, prescreen_request
+
+    screen = prescreen_request(content)
+    if screen.decision == "refuse":
+        async with session_factory() as s, s.begin():
+            await repo.add_message(s, session_id=session_id, role="user", content=content)
+            refusal = await repo.add_message(
+                s, session_id=session_id, role="assistant", content=REFUSAL_MESSAGE,
+                meta={"refused": True, "category": screen.category},
+            )
+            refusal_id = str(refusal.id)
+        await log_incident(session_factory, kind="refusal", severity="warning",
+                           decision="refuse", session_id=session_id,
+                           detail={"category": screen.category, "reason": screen.reason})
+        await send({"type": "refusal", "category": screen.category,
+                    "content": REFUSAL_MESSAGE})
+        await send({"type": "done", "message_id": refusal_id})
+        return
+    if screen.injection_detected:
+        await log_incident(session_factory, kind="injection_in_request",
+                           severity="info", session_id=session_id,
+                           detail={"flags": screen.flags})
+
     # 1) persist the user message
     async with session_factory() as s, s.begin():
         await repo.add_message(s, session_id=session_id, role="user", content=content)

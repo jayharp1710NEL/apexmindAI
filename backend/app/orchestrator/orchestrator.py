@@ -59,6 +59,22 @@ class Orchestrator:
         self, *, goal: str, session_id: str | None, emit: EmitFn
     ) -> dict:
         budget = Budget.from_settings(self.settings)
+
+        # --- safety pre-screen the goal before doing anything ---
+        from app.safety.incidents import log_incident
+        from app.safety.prescreen import REFUSAL_MESSAGE, prescreen_request
+
+        screen = prescreen_request(goal)
+        if screen.decision == "refuse":
+            await log_incident(self.session_factory, kind="refusal", severity="warning",
+                               decision="refuse", session_id=session_id,
+                               detail={"category": screen.category})
+            await emit({"type": "refusal", "category": screen.category,
+                        "content": REFUSAL_MESSAGE})
+            await self._persist_final(session_id, REFUSAL_MESSAGE, None)
+            return {"run_id": None, "status": "refused", "final": REFUSAL_MESSAGE,
+                    "steps_used": 0}
+
         run_id = await self._create_run(session_id, goal)
 
         # --- plan ---
@@ -121,9 +137,19 @@ class Orchestrator:
                 res = await self.tool_manager.dispatch(
                     step.tool, {key: arg}, session_id=session_id
                 )
-                content = (res.result or {}).get("content", "") if res.result else ""
+                result = res.result or {}
+                content = result.get("content", "")
+                flags = result.get("injection_flags", [])
+                if flags:
+                    from app.safety.incidents import log_incident
+
+                    await log_incident(
+                        self.session_factory, kind="injection_in_tool_content",
+                        severity="warning", session_id=session_id,
+                        detail={"tool": step.tool, "flags": flags},
+                    )
                 return {"status": res.status, "stdout": content[:1000],
-                        "reason": res.reason,
+                        "reason": res.reason, "injection_flags": flags,
                         "summary": (content or res.reason or "")[:500]}
             # agent / none -> a generation step
             task = _AGENT_TASK.get(step.agent, "reasoning")
