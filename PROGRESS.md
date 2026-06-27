@@ -4,8 +4,8 @@
 > without re-deriving context. Update this at the end of every step.
 
 **Branch:** `claude/apexmind-ai-mvp-dw318u`
-**Last updated:** 2026-06-27, after Step 8.
-**Latest commit:** Step 8 — RAG-lite with citations.
+**Last updated:** 2026-06-27, after Step 9.
+**Latest commit:** Step 9 — Memory-lite.
 
 ---
 
@@ -13,12 +13,13 @@
 
 ✅ **Step 1–6** (commits `b481f9b`, `84509ca`, `f8f112e`, `be958a0`, `18f9aca`, Step 6)
 ✅ **Step 7 — Orchestrator + web tools**
-✅ **Step 8 — RAG-lite: upload→chunk→embed→pgvector→top-k→cite [n]; "Unverified" when unsupported**
-⏭️ **NEXT: Step 9 — Memory-lite: persist project_facts + inject + viewer (list/delete)**
+✅ **Step 8 — RAG-lite (cite [n]; "Unverified")**
+✅ **Step 9 — Memory-lite: project_facts persist + inject + viewer (list/delete)**
+⏭️ **NEXT: Step 10 — Self-eval: Critic JSON {issues, hallucination_risk, confidence}; revise once if high; scorecard**
 
 Tree is clean; everything is pushed to `origin/claude/apexmind-ai-mvp-dw318u`.
-Test suite: **60 passing** (53 backend + 7 tool_worker sandbox).
-Frontend: `npm run build` succeeds (/, /chat, /runs, /documents).
+Test suite: **64 passing** (57 backend + 7 tool_worker sandbox).
+Frontend: `npm run build` succeeds (/, /chat, /runs, /documents, /memory).
 
 ---
 
@@ -34,8 +35,8 @@ Frontend: `npm run build` succeeds (/, /chat, /runs, /documents).
 | 6 | Tool Manager + permission engine (L0–5) + Dockerized code_exec (L2) + E-STOP + L≥3 approval | ✅ done |
 | 7 | Orchestrator: JSON plan → sequential steps under step/cost/time budget, E-STOP between steps | ✅ done |
 | 8 | RAG-lite: upload→chunk→embed→pgvector→top-k→cite [n]; "Unverified" when unsupported | ✅ done |
-| 9 | Memory-lite: project_facts persist + inject + viewer (list/delete) | ⏭️ **next** |
-| 10 | Self-eval: Critic JSON {issues, hallucination_risk, confidence}; revise once if high; scorecard | ⬜ |
+| 9 | Memory-lite: project_facts persist + inject + viewer (list/delete) | ✅ done |
+| 10 | Self-eval: Critic JSON {issues, hallucination_risk, confidence}; revise once if high; scorecard | ⏭️ **next** |
 | 11 | Safety pre-screen on requests + tool calls; ignore+flag injected instructions | ⬜ |
 | 12 | Benchmark runner ≥10 objective tests + "Run suite" view | ⬜ |
 

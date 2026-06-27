@@ -36,6 +36,7 @@ async def handle_turn(
 
     # 2) build model context from full history (includes the message just stored)
     async with session_factory() as s:
+        session = await repo.get_session(s, session_id)
         history = await repo.get_messages(s, session_id)
     messages = [
         LLMMessage(role=m.role, content=m.content)
@@ -43,11 +44,19 @@ async def handle_turn(
         if m.role in _CONTEXT_ROLES
     ]
 
+    # 2b) inject relevant durable project facts as system context (read path)
+    system = None
+    if session is not None:
+        from app.memory.facts import format_facts_for_prompt, get_facts_for_context
+
+        facts = await get_facts_for_context(session_factory, session.project_id)
+        system = format_facts_for_prompt(facts) or None
+
     # 3) stream the assistant reply
     await send({"type": "start"})
     chunks: list[str] = []
     try:
-        async for delta in llm.stream(task_type, messages=messages):
+        async for delta in llm.stream(task_type, messages=messages, system=system):
             chunks.append(delta)
             await send({"type": "token", "content": delta})
     except Exception as exc:  # surface errors; never hide them
