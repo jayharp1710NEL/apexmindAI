@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.chat.routes import router as chat_router
 from app.config import settings
 from app.orchestrator.routes import router as orchestrator_router
+from app.rag.routes import router as rag_router
 from app.safety.routes import router as safety_router
 
 
@@ -93,6 +94,7 @@ def create_app(
     app.include_router(chat_router)
     app.include_router(safety_router)
     app.include_router(orchestrator_router)
+    app.include_router(rag_router)
     return app
 
 
