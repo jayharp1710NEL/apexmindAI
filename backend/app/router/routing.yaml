@@ -10,6 +10,10 @@ version: 1
 default_provider: local
 
 task_types:
+  # The "boss": apexmind plans the work and delegates to the specialists below.
+  orchestration:
+    - { provider: local, model: apexmind }
+    - { provider: local, model: llama3.1 }
   reasoning:
     - { provider: local, model: apexmind }   # your own model (build it: model/README.md)
     - { provider: local, model: llama3.1 }

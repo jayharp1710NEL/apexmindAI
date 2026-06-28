@@ -13,6 +13,7 @@ can observe progress: plan, step_start, step_result, token, done, halted, error.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
@@ -86,9 +87,26 @@ class Orchestrator:
 
         step_outputs: list[str] = []
         status = "completed"
+        done_ids: set[int] = set()
 
-        for step in plan.steps:
-            # E-STOP between steps (the load-bearing check)
+        async def _run_one(step: PlanStep) -> dict:
+            await emit({"type": "step_start", "id": step.id,
+                        "description": step.description, "agent": step.agent,
+                        "tool": step.tool, "tool_level": step.tool_level})
+            out = await self._run_step(step, session_id, budget)
+            await self._save_step(run_id, step, out)
+            await emit({"type": "step_result", "id": step.id, **out})
+            return {"id": step.id, "summary": out["summary"]}
+
+        # Execute in dependency "waves": every ready step (deps satisfied) runs
+        # concurrently. E-STOP and budget are checked before each wave.
+        while len(done_ids) < len(plan.steps):
+            ready = [s for s in plan.steps
+                     if s.id not in done_ids
+                     and all(d in done_ids for d in s.depends_on)]
+            if not ready:
+                break  # unsatisfiable deps -> stop and synthesize what we have
+
             if await self.estop.is_engaged():
                 await emit({"type": "halted", "reason": "emergency stop engaged"})
                 status = "stopped"
@@ -99,15 +117,21 @@ class Orchestrator:
                 status = "stopped"
                 break
 
-            budget.tick_step()
-            await emit({"type": "step_start", "id": step.id,
-                        "description": step.description,
-                        "tool": step.tool, "tool_level": step.tool_level})
+            remaining = self.settings.max_steps - budget.steps_used
+            wave = ready[:remaining] if remaining > 0 else []
+            if not wave:
+                await emit({"type": "halted", "reason": "step budget reached"})
+                status = "stopped"
+                break
+            if len(wave) > 1:
+                await emit({"type": "parallel", "ids": [s.id for s in wave]})
+            for _ in wave:
+                budget.tick_step()
 
-            out = await self._run_step(step, session_id, budget)
-            step_outputs.append(f"[step {step.id}] {out['summary']}")
-            await self._save_step(run_id, step, out)
-            await emit({"type": "step_result", "id": step.id, **out})
+            results = await asyncio.gather(*(_run_one(s) for s in wave))
+            for r in results:
+                done_ids.add(r["id"])
+                step_outputs.append(f"[step {r['id']}] {r['summary']}")
 
         # --- final synthesis (streamed) + self-evaluation ---
         final_text = ""

@@ -41,7 +41,7 @@ async def generate_plan(
 ) -> Plan:
     system = await get_active_prompt("orchestrator", session_factory)
     resp = await llm.generate(
-        "structured_json",
+        "orchestration",  # the boss model plans the work
         prompt=goal,
         system=system,
         json_mode=True,

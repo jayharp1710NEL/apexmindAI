@@ -93,9 +93,10 @@ async def test_estop_halts_between_steps():
             self.n += 1
             return self.n > 1
 
+    # step 2 depends on step 1 -> separate waves -> E-STOP checked between them
     plan = Plan(goal="g", steps=[
         PlanStep(id=1, description="a", tool="none"),
-        PlanStep(id=2, description="b", tool="none"),
+        PlanStep(id=2, description="b", tool="none", depends_on=[1]),
     ])
 
     async def planner(llm, goal, session_factory=None):
@@ -113,11 +114,29 @@ async def test_estop_halts_between_steps():
     assert not any(e["type"] == "token" for e in events)  # no final synthesis
 
 
-async def test_budget_caps_steps():
+async def test_independent_steps_run_in_parallel():
     plan = Plan(goal="g", steps=[
         PlanStep(id=1, description="a", tool="none"),
         PlanStep(id=2, description="b", tool="none"),
         PlanStep(id=3, description="c", tool="none"),
+    ])
+
+    async def planner(llm, goal, session_factory=None):
+        return plan
+
+    events, res = await _collect(_orch(EStop(), _settings(), planner))
+    # all three with no deps -> one parallel wave
+    assert any(e["type"] == "parallel" and len(e["ids"]) == 3 for e in events)
+    assert len([e for e in events if e["type"] == "step_result"]) == 3
+    assert res["status"] == "completed"
+
+
+async def test_budget_caps_steps():
+    # chain the steps so each is its own wave -> budget caps after the first
+    plan = Plan(goal="g", steps=[
+        PlanStep(id=1, description="a", tool="none"),
+        PlanStep(id=2, description="b", tool="none", depends_on=[1]),
+        PlanStep(id=3, description="c", tool="none", depends_on=[2]),
     ])
 
     async def planner(llm, goal, session_factory=None):
@@ -128,5 +147,5 @@ async def test_budget_caps_steps():
     res = await orch.run(goal="g", session_id=None, emit=_mk_emit(events))
     starts = [e for e in events if e["type"] == "step_start"]
     assert len(starts) == 1
-    assert any(e["type"] == "halted" and "step budget" in e["reason"] for e in events)
+    assert any(e["type"] == "halted" and "budget" in e["reason"] for e in events)
     assert res["status"] == "stopped"

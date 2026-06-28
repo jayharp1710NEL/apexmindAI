@@ -21,6 +21,9 @@ class PlanStep(BaseModel):
     # derive it (e.g. ask the coding agent to write code) when needed.
     tool_input: str = ""
     expected_output: str = ""
+    # IDs of steps that must finish first. Steps with no (unmet) deps run in
+    # parallel — this is how the boss uses several specialists at the same time.
+    depends_on: list[int] = Field(default_factory=list)
 
 
 class Plan(BaseModel):
