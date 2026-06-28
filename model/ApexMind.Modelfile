@@ -14,12 +14,9 @@
 # Rebuild after any change:  ollama create apexmind -f model/ApexMind.Modelfile
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Strongest tier. qwen2.5:72b is among the strongest open-weight models.
-# Even-bigger options: llama3.1:405b (~231GB), qwen2.5:72b (~47GB).
-# NOTE: size here is gated by RAM, not just speed — the model must fit in RAM/VRAM
-# or it won't load. 72b needs ~48GB+; drop to qwen2.5:32b (~20GB) or :14b (~9GB)
-# if it fails to load.
-FROM qwen2.5:72b
+# Strongest base that fits ~16GB RAM alongside the Docker stack (~9GB model).
+# Need more? With more RAM/GPU: qwen2.5:32b (~20GB) or qwen2.5:72b (~48GB).
+FROM qwen2.5:14b
 
 # Sampling defaults for a focused, helpful assistant.
 PARAMETER temperature 0.6
