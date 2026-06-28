@@ -45,6 +45,10 @@ services:
     command: >
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    # Lets the container reach Ollama running on the host (Linux). On Docker
+    # Desktop (Mac/Windows) host.docker.internal resolves automatically.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./backend:/app
     healthcheck:

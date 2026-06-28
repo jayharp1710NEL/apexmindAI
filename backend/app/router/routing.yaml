@@ -1,43 +1,32 @@
-# routing.yaml — task_type -> ordered model candidates (with fallback on error).
+# routing.yaml — task_type -> ordered model candidates (fallback on error).
+# Only place models are chosen; switching is config-only. Providers without an API
+# key / base_url in the environment are skipped automatically.
 #
-# This file is the ONLY place models are chosen. Switching models is a config change
-# here; no application code changes. Each candidate names a provider (mapped to an
-# adapter under app/router/adapters/) and a model id. Providers without an API key
-# in the environment are skipped automatically.
-#
-# CURRENT CONFIG: OpenAI ONLY. To re-enable other providers, add candidates back
-# and set their API keys in the environment — still a config-only change.
+# CURRENT CONFIG: local (Ollama, free) for text tasks. Embeddings stay on OpenAI
+# because the pgvector column is 1536-dim (text-embedding-3-small). To run RAG fully
+# offline you'd switch the embed model and migrate EMBED_DIM to match.
 
 version: 1
-default_provider: openai
+default_provider: local
 
 task_types:
   reasoning:
-    - { provider: openai, model: gpt-4o }
-
+    - { provider: local, model: llama3.1 }
   coding:
-    - { provider: openai, model: gpt-4o }
-
+    - { provider: local, model: llama3.1 }
   fast:
-    - { provider: openai, model: gpt-4o-mini }
-
+    - { provider: local, model: llama3.1 }
   long_context:
-    - { provider: openai, model: gpt-4o }
-
+    - { provider: local, model: llama3.1 }
   summarize:
-    - { provider: openai, model: gpt-4o-mini }
-
+    - { provider: local, model: llama3.1 }
+  vision_doc:
+    - { provider: local, model: llama3.1 }
+  structured_json:
+    - { provider: local, model: llama3.1 }
+  critique:
+    - { provider: local, model: llama3.1 }
+  grading:
+    - { provider: local, model: llama3.1 }
   embeddings:
     - { provider: openai, model: text-embedding-3-small }
-
-  vision_doc:
-    - { provider: openai, model: gpt-4o }
-
-  structured_json:
-    - { provider: openai, model: gpt-4o }
-
-  critique:
-    - { provider: openai, model: gpt-4o }
-
-  grading:
-    - { provider: openai, model: gpt-4o-mini }
