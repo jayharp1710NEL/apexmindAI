@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-
 from app.safety.approvals import ApprovalRegistry
 from app.safety.estop import EStop
 from app.safety.permission_engine import PermissionEngine

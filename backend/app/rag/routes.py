@@ -20,7 +20,9 @@ class QueryIn(BaseModel):
 
 
 @router.post("/documents")
-async def upload_document(request: Request, file: UploadFile = File(...)) -> dict:
+async def upload_document(
+    request: Request, file: UploadFile = File(...)  # noqa: B008 — FastAPI idiom
+) -> dict:
     raw = await file.read()
     try:
         content = raw.decode("utf-8")
@@ -68,4 +70,5 @@ async def rag_query(body: QueryIn, request: Request) -> dict:
         project_id=project_id,
         query=body.query,
         top_k=settings.rag_top_k,
+        max_distance=settings.rag_max_distance,
     )

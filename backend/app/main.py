@@ -61,14 +61,29 @@ def create_app(
     if tool_manager is None:
         from app.audit.logger import AuditLogger
         from app.safety.permission_engine import PermissionEngine
-        from app.tools.impl.code_exec import make_local_code_exec
+        from app.tools.impl.code_exec import make_local_code_exec, make_redis_code_exec
         from app.tools.impl.web_fetch import make_web_fetch
         from app.tools.impl.web_search import make_web_search
         from app.tools.manager import ToolManager
 
+        # In "worker" mode the API never executes untrusted code itself: it enqueues
+        # to the isolated, network-stripped tool-worker over Redis. "local" runs an
+        # in-process subprocess sandbox (dev/tests). Falls back to local if a Redis
+        # client cannot be built.
+        code_exec_impl = make_local_code_exec()
+        if settings.tool_exec_mode == "worker":
+            try:
+                import redis.asyncio as aioredis
+
+                code_exec_impl = make_redis_code_exec(
+                    aioredis.from_url(settings.redis_url)
+                )
+            except Exception:  # pragma: no cover - falls back to local sandbox
+                pass
+
         tool_manager = ToolManager(
             impls={
-                "code_exec": make_local_code_exec(),
+                "code_exec": code_exec_impl,
                 "web_search": make_web_search(),
                 "web_fetch": make_web_fetch(),
             },

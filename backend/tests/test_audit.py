@@ -6,12 +6,12 @@ so they run anywhere. DB-backed behavior is covered in test_audit_integration.py
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.audit.logger import compute_entry_hash, verify_rows
 from app.db.models import AuditLog
 
-TS = datetime(2026, 6, 27, 12, 0, 0, tzinfo=timezone.utc)
+TS = datetime(2026, 6, 27, 12, 0, 0, tzinfo=UTC)
 
 
 def _make_chain(payloads: list[dict]) -> list[AuditLog]:

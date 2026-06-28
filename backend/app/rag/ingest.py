@@ -39,7 +39,7 @@ async def ingest_document(
                        content_type=content_type, size_bytes=len(content))
         s.add(doc)
         await s.flush()
-        for i, (text, vec) in enumerate(zip(chunks, emb.embeddings)):
+        for i, (text, vec) in enumerate(zip(chunks, emb.embeddings, strict=True)):
             s.add(DocChunk(document_id=doc.id, idx=i, content=text,
                            token_count=len(text.split()), embedding=vec))
         doc_id = doc.id

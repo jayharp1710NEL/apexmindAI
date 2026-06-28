@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
@@ -91,7 +91,7 @@ async def run_suite(
             if run:
                 run.status = "completed"
                 run.summary = summary
-                run.finished_at = datetime.now(timezone.utc)
+                run.finished_at = datetime.now(UTC)
 
     return {"run_id": str(run_id) if run_id else None, "summary": summary,
             "results": results}

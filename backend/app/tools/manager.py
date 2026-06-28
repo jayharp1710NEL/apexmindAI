@@ -18,7 +18,6 @@ property the Step-6 test pins down.
 from __future__ import annotations
 
 import logging
-import uuid
 from collections.abc import Awaitable, Callable
 
 from app.safety.approvals import ApprovalRegistry

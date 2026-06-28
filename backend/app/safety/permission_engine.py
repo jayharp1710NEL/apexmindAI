@@ -16,10 +16,10 @@ above it is denied. Level 5 is therefore always refused even if max_level change
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class PermissionDecision(str, Enum):
+class PermissionDecision(StrEnum):
     ALLOW = "allow"
     NEEDS_APPROVAL = "needs_approval"
     DENY = "deny"

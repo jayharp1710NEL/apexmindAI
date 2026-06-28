@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     max_run_cost_usd: float = 1.00
 
     # Sandbox
+    # "local"  -> run code in an in-process subprocess sandbox (dev/tests)
+    # "worker" -> enqueue to the isolated tool-worker over Redis (production stack)
+    tool_exec_mode: str = "local"
     sandbox_timeout_seconds: int = 10
     sandbox_mem_mb: int = 256
     sandbox_max_output_bytes: int = 65536
@@ -51,6 +54,9 @@ class Settings(BaseSettings):
     # RAG
     embedding_task_type: str = "embeddings"
     rag_top_k: int = 5
+    # Max cosine distance for a chunk to count as supporting evidence; above this
+    # the answer is "Unverified". Tune per embedding model without code changes.
+    rag_max_distance: float = 0.6
     chunk_size_tokens: int = 512
     chunk_overlap_tokens: int = 64
 

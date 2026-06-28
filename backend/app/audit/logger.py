@@ -17,7 +17,7 @@ import hashlib
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select, text
@@ -41,7 +41,7 @@ def compute_entry_hash(
     canonical = json.dumps(
         {
             "prev": prev_hash or "",
-            "ts": ts.astimezone(timezone.utc).isoformat(),
+            "ts": ts.astimezone(UTC).isoformat(),
             "actor": actor,
             "event_type": event_type,
             "session_id": str(session_id) if session_id else "",
@@ -109,7 +109,7 @@ class AuditLogger:
                 prev_hash = await session.scalar(
                     select(AuditLog.entry_hash).order_by(AuditLog.id.desc()).limit(1)
                 )
-                ts = datetime.now(timezone.utc)
+                ts = datetime.now(UTC)
                 entry_hash = compute_entry_hash(
                     prev_hash=prev_hash,
                     ts=ts,

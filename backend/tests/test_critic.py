@@ -6,7 +6,8 @@ from app.agents.critic import Scorecard, critique, self_evaluate
 from app.router.types import LLMResponse, Usage
 
 LOW = '{"issues":[],"hallucination_risk":"low","confidence":0.9,"needs_revision":false}'
-HIGH = '{"issues":["unsupported claim"],"hallucination_risk":"high","confidence":0.3,"needs_revision":true}'
+HIGH = ('{"issues":["unsupported claim"],"hallucination_risk":"high",'
+        '"confidence":0.3,"needs_revision":true}')
 
 
 class FakeCriticLLM:

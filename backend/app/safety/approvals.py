@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 ApprovalStatus = Literal["pending", "approved", "denied"]
@@ -24,7 +24,7 @@ class ApprovalRecord:
     session_id: str | None
     detail: dict[str, Any]
     status: ApprovalStatus = "pending"
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 class ApprovalRegistry:
@@ -60,7 +60,7 @@ class ApprovalRegistry:
         event = self._events[approval_id]
         try:
             await asyncio.wait_for(event.wait(), timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._records[approval_id].status = "denied"
             return False
         return self._records[approval_id].status == "approved"

@@ -97,10 +97,10 @@ async def handle_turn(
         message_id = msg.id
 
     # 5) self-evaluation: attach a Critic scorecard; revise once if high risk.
-    final_text = text
+    #    (the revised content + scorecard are persisted/emitted inside the helper)
     if hasattr(llm, "generate"):
         try:
-            final_text = await _self_eval_and_attach(
+            await _self_eval_and_attach(
                 llm, session_factory, message_id, content, text, send
             )
         except Exception as exc:  # never let evaluation break the answer

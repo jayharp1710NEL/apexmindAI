@@ -81,11 +81,13 @@ async def test_audit_log_is_append_only(session_factory):
     logger = AuditLogger(session_factory)
     await logger.append(actor="system", event_type="test", payload={"x": 1})
 
+    from sqlalchemy.exc import DBAPIError
+
     async with session_factory() as s:
-        with pytest.raises(Exception):
+        with pytest.raises(DBAPIError):
             await s.execute(text("UPDATE audit_log SET actor='hacker'"))
             await s.commit()
     async with session_factory() as s:
-        with pytest.raises(Exception):
+        with pytest.raises(DBAPIError):
             await s.execute(text("DELETE FROM audit_log"))
             await s.commit()

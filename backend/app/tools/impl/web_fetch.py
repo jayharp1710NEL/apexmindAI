@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import re
 
-from app.config import settings
 from app.tools.schema import ToolResult
 
 _INJECTION_PATTERNS = [

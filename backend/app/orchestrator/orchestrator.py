@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
+from datetime import UTC
 
 from app.orchestrator.budget import Budget
 from app.orchestrator.plan import Plan, PlanStep
@@ -267,7 +268,7 @@ class Orchestrator:
     async def _finish_run(self, run_id, status, budget) -> None:
         if self.session_factory is None or run_id is None:
             return
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from app.db.models import Run
 
@@ -276,4 +277,4 @@ class Orchestrator:
             if run:
                 run.status = status
                 run.cost_usd = round(budget.cost_usd, 6)
-                run.finished_at = datetime.now(timezone.utc)
+                run.finished_at = datetime.now(UTC)

@@ -21,9 +21,9 @@ _BACKEND = Path(__file__).resolve().parents[1] / "backend"
 if _BACKEND.is_dir() and str(_BACKEND) not in sys.path:
     sys.path.insert(0, str(_BACKEND))
 
-from app.config import settings
-from app.router.router import build_adapters, load_routing_config
-from app.router.types import LLMRequest, Message
+from app.config import settings  # noqa: E402  (after sys.path bootstrap)
+from app.router.router import build_adapters, load_routing_config  # noqa: E402
+from app.router.types import LLMRequest, Message  # noqa: E402
 
 PROMPT = "In one short sentence, say hello and name the company that made you."
 
