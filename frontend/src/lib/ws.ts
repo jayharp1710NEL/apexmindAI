@@ -49,9 +49,18 @@ export class ChatSocket {
     };
   }
 
-  send(content: string, taskType = "reasoning"): void {
+  send(
+    content: string,
+    opts: { model?: string; provider?: string; taskType?: string } = {},
+  ): void {
     this.ws?.send(
-      JSON.stringify({ type: "user_message", content, task_type: taskType }),
+      JSON.stringify({
+        type: "user_message",
+        content,
+        task_type: opts.taskType ?? "reasoning",
+        model: opts.model,
+        provider: opts.provider,
+      }),
     );
   }
 

@@ -94,6 +94,8 @@ class LLMInterface:
         max_tokens: int = 1024,
         temperature: float = 0.7,
         json_mode: bool = False,
+        model: str | None = None,
+        provider: str | None = None,
     ) -> AsyncIterator[str]:
         req = LLMRequest(
             messages=messages or [Message(role="user", content=prompt or "")],
@@ -102,8 +104,24 @@ class LLMInterface:
             temperature=temperature,
             json_mode=json_mode,
         )
+        # Explicit model override (from the UI picker) bypasses routing but still
+        # goes through the adapter (so it is audited like any other call).
+        adapter = self._override_adapter(provider, model)
+        if adapter is not None:
+            async for delta in adapter.stream(req.model_copy(update={"model": model})):
+                yield delta
+            return
         async for delta in self._router.stream(task_type, req):
             yield delta
+
+    # -- helpers ---------------------------------------------------------- #
+    def _override_adapter(self, provider: str | None, model: str | None):
+        if not provider or not model:
+            return None
+        return self._router.adapters.get(provider)
+
+    def available_providers(self) -> list[str]:
+        return sorted(self._router.adapters.keys())
 
     # -- embeddings ------------------------------------------------------- #
     async def embed(

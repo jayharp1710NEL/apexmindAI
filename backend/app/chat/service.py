@@ -29,6 +29,8 @@ async def handle_turn(
     content: str,
     task_type: str,
     send: SendFn,
+    model: str | None = None,
+    provider: str | None = None,
 ) -> None:
     # 0) safety pre-screen — refuse clear harm before any model call
     from app.safety.incidents import log_incident
@@ -81,7 +83,8 @@ async def handle_turn(
     await send({"type": "start"})
     chunks: list[str] = []
     try:
-        async for delta in llm.stream(task_type, messages=messages, system=system):
+        async for delta in llm.stream(task_type, messages=messages, system=system,
+                                      model=model, provider=provider):
             chunks.append(delta)
             await send({"type": "token", "content": delta})
     except Exception as exc:  # surface errors; never hide them

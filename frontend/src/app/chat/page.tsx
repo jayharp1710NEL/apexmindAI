@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createSession } from "@/lib/api";
+import { ModelOption, createSession, listModels } from "@/lib/api";
 import { ChatSocket } from "@/lib/ws";
 
 interface ChatMessage {
@@ -16,8 +16,17 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [connected, setConnected] = useState(false);
   const [streaming, setStreaming] = useState(false);
+  const [models, setModels] = useState<ModelOption[]>([]);
+  const [picked, setPicked] = useState<string>("");
   const socketRef = useRef<ChatSocket | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    listModels().then((m) => {
+      setModels(m);
+      if (m.length) setPicked(`${m[0].provider}:${m[0].id}`);
+    });
+  }, []);
 
   // Create a session and open the WebSocket once.
   useEffect(() => {
@@ -35,10 +44,12 @@ export default function ChatPage() {
           ]),
         onToken: (t) =>
           setMessages((m) => {
-            const copy = [...m];
-            const last = copy[copy.length - 1];
-            if (last?.pending) last.content += t;
-            return copy;
+            // Pure update — never mutate existing objects (React 18 StrictMode
+            // runs updaters twice in dev; mutating would double the text).
+            const last = m[m.length - 1];
+            if (!last?.pending) return m;
+            const updated = { ...last, content: last.content + t };
+            return [...m.slice(0, -1), updated];
           }),
         onDone: () => {
           setStreaming(false);
@@ -68,7 +79,8 @@ export default function ChatPage() {
     const text = input.trim();
     if (!text || !socketRef.current || streaming) return;
     setMessages((m) => [...m, { role: "user", content: text }]);
-    socketRef.current.send(text);
+    const [provider, ...rest] = picked.split(":");
+    socketRef.current.send(text, picked ? { provider, model: rest.join(":") } : {});
     setStreaming(true);
     setInput("");
   }
@@ -77,11 +89,26 @@ export default function ChatPage() {
     <main className="mx-auto flex h-screen max-w-3xl flex-col p-4">
       <header className="flex items-center justify-between border-b border-slate-800 pb-3">
         <h1 className="text-lg font-semibold">ApexMind · Chat</h1>
-        <span
-          className={`text-xs ${connected ? "text-emerald-400" : "text-slate-500"}`}
-        >
-          {connected ? "● connected" : "○ connecting…"}
-        </span>
+        <div className="flex items-center gap-3">
+          {models.length > 0 && (
+            <select
+              value={picked}
+              onChange={(e) => setPicked(e.target.value)}
+              className="rounded bg-slate-800 px-2 py-1 text-xs outline-none"
+            >
+              {models.map((m) => (
+                <option key={`${m.provider}:${m.id}`} value={`${m.provider}:${m.id}`}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          )}
+          <span
+            className={`text-xs ${connected ? "text-emerald-400" : "text-slate-500"}`}
+          >
+            {connected ? "● connected" : "○ connecting…"}
+          </span>
+        </div>
       </header>
 
       <div className="flex-1 space-y-4 overflow-y-auto py-4">

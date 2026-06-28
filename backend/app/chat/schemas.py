@@ -33,6 +33,9 @@ class UserMessageIn(BaseModel):
     type: Literal["user_message"] = "user_message"
     content: str
     task_type: str = "reasoning"
+    # Optional explicit model picker (bypasses routing for this turn).
+    model: str | None = None
+    provider: str | None = None
 
 
 # -- WebSocket: server -> client (discriminated by `type`) ------------------ #

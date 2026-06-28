@@ -99,6 +99,8 @@ async def ws_chat(websocket: WebSocket, session_id: uuid.UUID) -> None:
                 content=msg.content,
                 task_type=msg.task_type,
                 send=send,
+                model=msg.model,
+                provider=msg.provider,
             )
     except WebSocketDisconnect:
         return

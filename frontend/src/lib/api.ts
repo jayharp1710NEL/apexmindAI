@@ -97,3 +97,19 @@ export async function runBenchmarks(): Promise<BenchmarkRun> {
   if (!res.ok) throw new Error(`runBenchmarks failed: ${res.status}`);
   return res.json();
 }
+
+export interface ModelOption {
+  id: string;
+  provider: string;
+  label: string;
+}
+
+export async function listModels(): Promise<ModelOption[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/models`);
+    if (!res.ok) return [];
+    return (await res.json()).models ?? [];
+  } catch {
+    return [];
+  }
+}

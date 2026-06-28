@@ -16,6 +16,7 @@ from app.config import settings
 from app.memory.routes import router as memory_router
 from app.orchestrator.routes import router as orchestrator_router
 from app.rag.routes import router as rag_router
+from app.router.models_routes import router as models_router
 from app.safety.routes import router as safety_router
 
 
@@ -114,6 +115,7 @@ def create_app(
     app.include_router(rag_router)
     app.include_router(memory_router)
     app.include_router(benchmarks_router)
+    app.include_router(models_router)
     return app
 
 
