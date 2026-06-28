@@ -14,15 +14,10 @@ Both return an async impl `(args) -> ToolResult` suitable for ToolManager, where
 from __future__ import annotations
 
 import json
-import sys
 import uuid
-from pathlib import Path
 
 from app.config import settings
 from app.tools.schema import ToolResult
-
-# Allow importing the standalone executor (lives in the tool_worker service).
-_TOOL_WORKER = Path(__file__).resolve().parents[4] / "tool_worker"
 
 
 def _result_from_exec(payload: dict) -> ToolResult:
@@ -39,11 +34,8 @@ def _result_from_exec(payload: dict) -> ToolResult:
 
 
 def make_local_code_exec():
-    if str(_TOOL_WORKER) not in sys.path:
-        sys.path.insert(0, str(_TOOL_WORKER))
-
     async def _impl(args: dict) -> ToolResult:
-        from executor import run_code  # type: ignore
+        from app.tools.sandbox import run_code
 
         code = args.get("code", "")
         res = run_code(
