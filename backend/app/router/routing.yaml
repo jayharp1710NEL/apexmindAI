@@ -1,10 +1,10 @@
 # routing.yaml — task_type -> ordered model candidates (fallback on error).
-# Only place models are chosen; switching is config-only. Providers without an API
-# key / base_url in the environment are skipped automatically.
+# Only place models are chosen. The chat UI model picker overrides this per-turn.
+# Each task lists a preferred model then llama3.1 as a safe fallback, so nothing
+# breaks if you haven't pulled the preferred one yet (Ollama errors -> next candidate).
 #
-# CURRENT CONFIG: local (Ollama, free) for text tasks. Embeddings stay on OpenAI
-# because the pgvector column is 1536-dim (text-embedding-3-small). To run RAG fully
-# offline you'd switch the embed model and migrate EMBED_DIM to match.
+# Pull the recommended models with: scripts/pull_models.(cmd|sh)
+# Embeddings stay on OpenAI (pgvector column is 1536-dim).
 
 version: 1
 default_provider: local
@@ -13,12 +13,15 @@ task_types:
   reasoning:
     - { provider: local, model: llama3.1 }
   coding:
+    - { provider: local, model: "qwen2.5-coder:7b" }   # best free local coder
     - { provider: local, model: llama3.1 }
   fast:
+    - { provider: local, model: "llama3.2:3b" }
     - { provider: local, model: llama3.1 }
   long_context:
     - { provider: local, model: llama3.1 }
   summarize:
+    - { provider: local, model: "llama3.2:3b" }
     - { provider: local, model: llama3.1 }
   vision_doc:
     - { provider: local, model: llama3.1 }
@@ -27,6 +30,7 @@ task_types:
   critique:
     - { provider: local, model: llama3.1 }
   grading:
+    - { provider: local, model: "llama3.2:3b" }
     - { provider: local, model: llama3.1 }
   embeddings:
     - { provider: openai, model: text-embedding-3-small }
