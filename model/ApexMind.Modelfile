@@ -14,7 +14,9 @@
 # Rebuild after any change:  ollama create apexmind -f model/ApexMind.Modelfile
 # ─────────────────────────────────────────────────────────────────────────────
 
-FROM llama3.1
+# Strongest practical base for CPU (~7B, top-tier open quality).
+# Bigger = smarter but much slower on CPU: qwen2.5:14b / qwen2.5:32b (GPU recommended).
+FROM qwen2.5:7b
 
 # Sampling defaults for a focused, helpful assistant.
 PARAMETER temperature 0.6
