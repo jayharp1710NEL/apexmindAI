@@ -152,10 +152,15 @@ class Orchestrator:
                 return {"status": res.status, "stdout": content[:1000],
                         "reason": res.reason, "injection_flags": flags,
                         "summary": (content or res.reason or "")[:500]}
-            # agent / none -> a generation step
+            # agent / none -> a generation step (each agent shares the identity)
+            from app.agents.identity import identity_system
+
             task = _AGENT_TASK.get(step.agent, "reasoning")
+            role = step.agent if step.agent != "none" else "assistant"
             resp = await self.llm.generate(
-                task, prompt=step.description, max_tokens=600, temperature=0.4
+                task, prompt=step.description, max_tokens=600, temperature=0.4,
+                system=identity_system(f"You are acting as the {role} agent on the "
+                                       f"team for this step."),
             )
             budget.add_cost(resp.model, resp.usage)
             return {"status": "ok", "text": resp.text, "summary": resp.text[:500]}
@@ -205,10 +210,13 @@ class Orchestrator:
                 f"Write the final answer to the goal."
             )),
         ]
+        from app.agents.identity import identity_system
+
         chunks: list[str] = []
         try:
             async for delta in self.llm.stream("reasoning", messages=messages,
-                                               max_tokens=800):
+                                               max_tokens=800,
+                                               system=identity_system()):
                 chunks.append(delta)
                 await emit({"type": "token", "content": delta})
         except Exception as exc:

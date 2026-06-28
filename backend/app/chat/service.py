@@ -71,13 +71,16 @@ async def handle_turn(
         if m.role in _CONTEXT_ROLES
     ]
 
-    # 2b) inject relevant durable project facts as system context (read path)
-    system = None
+    # 2b) identity + relevant durable project facts as system context (read path)
+    from app.agents.identity import identity_system
+
+    facts_text = ""
     if session is not None:
         from app.memory.facts import format_facts_for_prompt, get_facts_for_context
 
         facts = await get_facts_for_context(session_factory, session.project_id)
-        system = format_facts_for_prompt(facts) or None
+        facts_text = format_facts_for_prompt(facts)
+    system = identity_system(facts_text or None)
 
     # 3) stream the assistant reply
     await send({"type": "start"})

@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     secret_key: str = "change-me-in-prod"
 
+    # Identity (who the assistant is / who made it)
+    assistant_name: str = "ApexMind"
+    creator_name: str = "Jay"
+
     # Datastores
     database_url: str = "postgresql+asyncpg://apex:apex@postgres:5432/apexmind"
     redis_url: str = "redis://redis:6379/0"
