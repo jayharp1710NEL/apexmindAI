@@ -181,8 +181,11 @@ class Orchestrator:
 
             task = _AGENT_TASK.get(step.agent, "reasoning")
             role = step.agent if step.agent != "none" else "assistant"
+            # Boss-assigned model for this step (else routed by task type).
+            prov = step.provider or ("local" if step.model else None)
             resp = await self.llm.generate(
                 task, prompt=step.description, max_tokens=600, temperature=0.4,
+                model=step.model or None, provider=prov,
                 system=identity_system(f"You are acting as the {role} agent on the "
                                        f"team for this step."),
             )

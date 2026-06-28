@@ -32,6 +32,26 @@ def extract_json(text: str) -> dict:
     return json.loads(text)
 
 
+async def _available_models() -> list[str]:
+    """List installed local (Ollama) model ids so the boss can assign them."""
+    from app.config import settings
+
+    if not settings.local_openai_base_url:
+        return []
+    try:
+        import httpx
+
+        base = settings.local_openai_base_url.rstrip("/")
+        async with httpx.AsyncClient(timeout=4) as c:
+            resp = await c.get(
+                f"{base}/models",
+                headers={"Authorization": f"Bearer {settings.local_openai_api_key or 'x'}"},
+            )
+        return [m["id"] for m in resp.json().get("data", []) if m.get("id")]
+    except Exception:
+        return []
+
+
 async def generate_plan(
     llm: LLMInterface,
     goal: str,
@@ -40,6 +60,14 @@ async def generate_plan(
     max_tokens: int = 1200,
 ) -> Plan:
     system = await get_active_prompt("orchestrator", session_factory)
+    models = await _available_models()
+    if models:
+        system += (
+            "\n\nLocal models you may assign per step via \"model\" (provider "
+            '"local"). Pick the best specialist for each step; assign different '
+            "models to independent steps so they run in parallel:\n- "
+            + "\n- ".join(models)
+        )
     resp = await llm.generate(
         "orchestration",  # the boss model plans the work
         prompt=goal,

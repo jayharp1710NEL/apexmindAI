@@ -21,6 +21,10 @@ class PlanStep(BaseModel):
     # derive it (e.g. ask the coding agent to write code) when needed.
     tool_input: str = ""
     expected_output: str = ""
+    # The boss may assign a specific model to this step (e.g. "qwen2.5-coder:7b").
+    # Empty -> the router picks by agent/task type.
+    model: str = ""
+    provider: str = ""
     # IDs of steps that must finish first. Steps with no (unmet) deps run in
     # parallel — this is how the boss uses several specialists at the same time.
     depends_on: list[int] = Field(default_factory=list)

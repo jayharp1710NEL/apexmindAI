@@ -15,6 +15,8 @@ OUTPUT: strict JSON only, matching this schema (no prose, no markdown fences):
       "tool_level": integer,        // 0-5; the permission level this step requests
       "tool_input": string,         // optional: python code (code_exec), query
                                     // (web_search), or URL (web_fetch); "" if n/a
+      "model": string,              // optional: assign a specific model id; "" = auto
+      "provider": string,           // optional: usually "local"; "" = auto
       "depends_on": [integer],      // ids that must finish first; [] = can run in parallel
       "expected_output": string
     }

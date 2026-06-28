@@ -20,9 +20,11 @@ def _settings(max_steps=12, max_seconds=300, max_cost=1.0):
 
 class FakeLLM:
     async def generate(self, task_type, *, prompt=None, system=None, messages=None,
-                       max_tokens=1024, temperature=0.7, json_mode=False, stop=None):
-        return LLMResponse(text=f"answer:{prompt or 'ctx'}", model="fake-1",
-                           provider="fake", usage=Usage(input_tokens=5, output_tokens=7))
+                       max_tokens=1024, temperature=0.7, json_mode=False, stop=None,
+                       model=None, provider=None):
+        return LLMResponse(text=f"answer:{prompt or 'ctx'}", model=model or "fake-1",
+                           provider=provider or "fake",
+                           usage=Usage(input_tokens=5, output_tokens=7))
 
     async def stream(self, task_type, *, messages=None, prompt=None, system=None,
                      max_tokens=1024, temperature=0.7, json_mode=False) -> AsyncIterator[str]:

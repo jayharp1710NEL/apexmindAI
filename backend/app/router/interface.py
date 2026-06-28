@@ -73,6 +73,8 @@ class LLMInterface:
         temperature: float = 0.7,
         json_mode: bool = False,
         stop: list[str] | None = None,
+        model: str | None = None,
+        provider: str | None = None,
     ) -> LLMResponse:
         req = LLMRequest(
             messages=messages or [Message(role="user", content=prompt or "")],
@@ -82,6 +84,9 @@ class LLMInterface:
             json_mode=json_mode,
             stop=stop,
         )
+        adapter = self._override_adapter(provider, model)
+        if adapter is not None:
+            return await adapter.generate(req.model_copy(update={"model": model}))
         return await self._router.generate(task_type, req)
 
     async def stream(
