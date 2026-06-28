@@ -20,10 +20,12 @@ def load_suite(name: str = "mvp_suite") -> dict:
 
 
 async def run_suite(
-    *, session_factory=None, llm=None, suite_name: str = "mvp_suite"
+    *, session_factory=None, llm=None, tool_manager=None, suite_name: str = "mvp_suite"
 ) -> dict:
     suite = load_suite(suite_name)
-    ctx = CheckContext(session_factory=session_factory, llm=llm)
+    ctx = CheckContext(
+        session_factory=session_factory, llm=llm, tool_manager=tool_manager
+    )
 
     # Persist a benchmark_runs row up front (if a DB is available).
     run_id = None

@@ -17,6 +17,7 @@ async def run(request: Request) -> dict:
     return await run_suite(
         session_factory=request.app.state.session_factory,
         llm=request.app.state.llm,
+        tool_manager=request.app.state.tool_manager,
     )
 
 

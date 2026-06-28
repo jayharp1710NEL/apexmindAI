@@ -41,19 +41,25 @@ def main() -> None:  # pragma: no cover - integration loop
     client = _connect()
     print(f"[tool-worker] waiting for jobs on {JOB_QUEUE}", flush=True)
     while True:
-        item = client.blpop(JOB_QUEUE, timeout=5)
+        try:
+            item = client.blpop(JOB_QUEUE, timeout=5)
+        except Exception as exc:
+            # transient Redis hiccup (e.g. socket timeout) — log and keep going
+            print(f"[tool-worker] redis poll error: {exc!r}", flush=True)
+            time.sleep(1)
+            continue
         if item is None:
             continue
         _, raw = item
         try:
             job_id, payload = handle_job(raw)
+            key = RESULT_PREFIX + job_id
+            client.rpush(key, json.dumps(payload))
+            client.expire(key, RESULT_TTL_SECONDS)
+            print(f"[tool-worker] completed job {job_id} at {time.time()}", flush=True)
         except Exception as exc:
             print(f"[tool-worker] bad job: {exc!r}", flush=True)
             continue
-        key = RESULT_PREFIX + job_id
-        client.rpush(key, json.dumps(payload))
-        client.expire(key, RESULT_TTL_SECONDS)
-        print(f"[tool-worker] completed job {job_id} at {time.time()}", flush=True)
 
 
 if __name__ == "__main__":

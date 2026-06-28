@@ -24,6 +24,7 @@ from app.tools.schema import ToolResult
 class CheckContext:
     session_factory: Any = None
     llm: Any = None
+    tool_manager: Any = None  # the app's ToolManager (worker mode) when available
 
 
 def _sandbox_manager(estop: EStop | None = None) -> ToolManager:
@@ -35,21 +36,27 @@ def _sandbox_manager(estop: EStop | None = None) -> ToolManager:
     )
 
 
+def _code_manager(ctx: CheckContext):
+    """Prefer the app's configured ToolManager (runs code in the isolated worker
+    when TOOL_EXEC_MODE=worker); fall back to a local in-process sandbox."""
+    return ctx.tool_manager or _sandbox_manager()
+
+
 # --- deterministic, no-LLM, no-DB checks ----------------------------------- #
 async def check_coding_print(ctx: CheckContext) -> tuple[bool, dict]:
-    res = await _sandbox_manager().dispatch("code_exec", {"code": "print('hello')"})
+    res = await _code_manager(ctx).dispatch("code_exec", {"code": "print('hello')"})
     return ("hello" in (res.stdout or ""), {"stdout": res.stdout})
 
 
 async def check_math_sum(ctx: CheckContext) -> tuple[bool, dict]:
-    res = await _sandbox_manager().dispatch(
+    res = await _code_manager(ctx).dispatch(
         "code_exec", {"code": "print(sum(range(101)))"}
     )
     return ((res.stdout or "").strip() == "5050", {"stdout": res.stdout})
 
 
 async def check_math_factorial(ctx: CheckContext) -> tuple[bool, dict]:
-    res = await _sandbox_manager().dispatch(
+    res = await _code_manager(ctx).dispatch(
         "code_exec", {"code": "import math; print(math.factorial(10))"}
     )
     return ((res.stdout or "").strip() == "3628800", {"stdout": res.stdout})
@@ -59,14 +66,14 @@ async def check_sandbox_network_blocked(ctx: CheckContext) -> tuple[bool, dict]:
     code = ("import socket\n"
             "try:\n socket.create_connection(('1.1.1.1',80),timeout=1); print('NET')\n"
             "except Exception: print('BLOCKED')\n")
-    res = await _sandbox_manager().dispatch("code_exec", {"code": code})
+    res = await _code_manager(ctx).dispatch("code_exec", {"code": code})
     out = res.stdout or ""
     return ("NET" not in out and "BLOCKED" in out, {"stdout": out})
 
 
 async def check_sandbox_timeout(ctx: CheckContext) -> tuple[bool, dict]:
     # tight-loop CPU is bounded by RLIMIT_CPU/wall timeout in the executor
-    res = await _sandbox_manager().dispatch(
+    res = await _code_manager(ctx).dispatch(
         "code_exec", {"code": "while True:\n  pass"}
     )
     return (res.status in ("timeout", "error"), {"status": res.status})

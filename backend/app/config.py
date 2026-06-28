@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     sandbox_mem_mb: int = 256
     sandbox_max_output_bytes: int = 65536
 
+    # Run the Critic scorecard after each chat turn. Off = much faster on local
+    # CPU models (skips a second LLM call per message). Orchestrator runs still
+    # always score their final answer.
+    chat_self_eval: bool = True
+
     # RAG
     embedding_task_type: str = "embeddings"
     rag_top_k: int = 5

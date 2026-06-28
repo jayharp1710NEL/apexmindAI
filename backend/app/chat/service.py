@@ -98,7 +98,10 @@ async def handle_turn(
 
     # 5) self-evaluation: attach a Critic scorecard; revise once if high risk.
     #    (the revised content + scorecard are persisted/emitted inside the helper)
-    if hasattr(llm, "generate"):
+    #    Skippable for speed on local CPU models via CHAT_SELF_EVAL=false.
+    from app.config import settings as _settings
+
+    if _settings.chat_self_eval and hasattr(llm, "generate"):
         try:
             await _self_eval_and_attach(
                 llm, session_factory, message_id, content, text, send
