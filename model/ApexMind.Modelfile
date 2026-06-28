@@ -14,9 +14,9 @@
 # Rebuild after any change:  ollama create apexmind -f model/ApexMind.Modelfile
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Strongest base that fits ~16GB RAM alongside the Docker stack (~9GB model).
-# Need more? With more RAM/GPU: qwen2.5:32b (~20GB) or qwen2.5:72b (~48GB).
-FROM qwen2.5:14b
+# Smart + fast boss that fits 16GB RAM alongside the Docker stack.
+# Want a stronger boss (needs more RAM/GPU)? qwen2.5:14b / :32b / :72b, then rebuild.
+FROM qwen2.5:7b
 
 # Sampling defaults for a focused, helpful assistant.
 PARAMETER temperature 0.6
