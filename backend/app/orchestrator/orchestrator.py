@@ -193,7 +193,8 @@ class Orchestrator:
                                        f"team for this step."),
             )
             budget.add_cost(resp.model, resp.usage)
-            return {"status": "ok", "text": resp.text, "summary": resp.text[:500]}
+            return {"status": "ok", "text": resp.text, "summary": resp.text[:500],
+                    "model": resp.model}
         except Exception as exc:
             logger.exception("step %s failed", step.id)
             return {"status": "error", "error": f"{type(exc).__name__}: {exc}",

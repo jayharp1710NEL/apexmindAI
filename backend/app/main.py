@@ -99,12 +99,14 @@ def create_app(
     app.state.tool_manager = tool_manager
 
     # --- orchestrator ---
+    from app.orchestrator.jobs import RunJobStore
     from app.orchestrator.orchestrator import Orchestrator
 
     app.state.orchestrator = Orchestrator(
         llm=llm, tool_manager=tool_manager, estop=estop, settings=settings,
         session_factory=session_factory,
     )
+    app.state.run_jobs = RunJobStore()
 
     @app.get("/health")
     async def health() -> dict[str, str]:

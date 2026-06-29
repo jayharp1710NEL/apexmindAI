@@ -15,6 +15,7 @@ interface StepResult {
   status: string;
   stdout?: string;
   reason?: string;
+  model?: string;
 }
 
 export default function RunsPage() {
@@ -123,6 +124,7 @@ export default function RunsPage() {
                     </span>
                     <span className="text-xs text-slate-500">
                       {s.tool !== "none" ? `${s.tool} · L${s.tool_level}` : "agent"}
+                      {r?.model && ` · ${r.model}`}
                       {r && ` · ${r.status}`}
                     </span>
                   </div>

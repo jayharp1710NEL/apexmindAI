@@ -8,6 +8,7 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   pending?: boolean;
+  model?: string;
 }
 
 function FeedbackButtons({
@@ -64,6 +65,11 @@ export default function ChatPage() {
   const [picked, setPicked] = useState<string>("");
   const socketRef = useRef<ChatSocket | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const pickedRef = useRef("");
+
+  useEffect(() => {
+    pickedRef.current = picked;
+  }, [picked]);
 
   useEffect(() => {
     listModels().then((m) => {
@@ -84,7 +90,12 @@ export default function ChatPage() {
         onStart: () =>
           setMessages((m) => [
             ...m,
-            { role: "assistant", content: "", pending: true },
+            {
+              role: "assistant",
+              content: "",
+              pending: true,
+              model: pickedRef.current.split(":").slice(1).join(":") || "auto",
+            },
           ]),
         onToken: (t) =>
           setMessages((m) => {
@@ -176,11 +187,14 @@ export default function ChatPage() {
               {m.content}
               {m.pending && <span className="animate-pulse">▌</span>}
             </div>
+            {m.role === "assistant" && m.model && (
+              <span className="mt-1 text-[11px] text-slate-500">via {m.model}</span>
+            )}
             {m.role === "assistant" && !m.pending && m.content && (
               <FeedbackButtons
                 answer={m.content}
                 prompt={messages[i - 1]?.content ?? ""}
-                model={picked.split(":").slice(1).join(":") || undefined}
+                model={m.model}
               />
             )}
           </div>
