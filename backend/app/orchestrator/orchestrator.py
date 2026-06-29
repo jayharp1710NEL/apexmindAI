@@ -179,7 +179,10 @@ class Orchestrator:
             # agent / none -> a generation step (each agent shares the identity)
             from app.agents.identity import identity_system
 
-            task = _AGENT_TASK.get(step.agent, "reasoning")
+            # Config-driven routing: each agent goes to its specialist lane.
+            task = (self.llm.agent_task(step.agent)
+                    if hasattr(self.llm, "agent_task")
+                    else _AGENT_TASK.get(step.agent, "reasoning"))
             role = step.agent if step.agent != "none" else "assistant"
             # Boss-assigned model for this step (else routed by task type).
             prov = step.provider or ("local" if step.model else None)

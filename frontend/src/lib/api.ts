@@ -113,3 +113,17 @@ export async function listModels(): Promise<ModelOption[]> {
     return [];
   }
 }
+
+export async function sendFeedback(args: {
+  prompt: string;
+  answer: string;
+  rating: "up" | "down";
+  correction?: string;
+  model?: string;
+}): Promise<void> {
+  await fetch(`${API_BASE}/api/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  });
+}

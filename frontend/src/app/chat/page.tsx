@@ -1,13 +1,57 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ModelOption, createSession, listModels } from "@/lib/api";
+import { ModelOption, createSession, listModels, sendFeedback } from "@/lib/api";
 import { ChatSocket } from "@/lib/ws";
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   pending?: boolean;
+}
+
+function FeedbackButtons({
+  prompt,
+  answer,
+  model,
+}: {
+  prompt: string;
+  answer: string;
+  model?: string;
+}) {
+  const [done, setDone] = useState<"up" | "down" | null>(null);
+  if (done)
+    return (
+      <span className="mt-1 text-xs text-slate-500">
+        {done === "up" ? "✓ saved as a good example" : "✓ correction saved"}
+      </span>
+    );
+  return (
+    <div className="mt-1 flex gap-2 text-xs text-slate-500">
+      <button
+        title="Good answer — save as training example"
+        onClick={async () => {
+          await sendFeedback({ prompt, answer, rating: "up", model });
+          setDone("up");
+        }}
+        className="hover:text-emerald-400"
+      >
+        👍
+      </button>
+      <button
+        title="Bad answer — give the correct one"
+        onClick={async () => {
+          const correction = window.prompt("What's the better answer?") ?? "";
+          if (!correction) return;
+          await sendFeedback({ prompt, answer, rating: "down", correction, model });
+          setDone("down");
+        }}
+        className="hover:text-rose-400"
+      >
+        👎
+      </button>
+    </div>
+  );
 }
 
 export default function ChatPage() {
@@ -120,7 +164,7 @@ export default function ChatPage() {
         {messages.map((m, i) => (
           <div
             key={i}
-            className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+            className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}
           >
             <div
               className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-2 text-sm ${
@@ -132,6 +176,13 @@ export default function ChatPage() {
               {m.content}
               {m.pending && <span className="animate-pulse">▌</span>}
             </div>
+            {m.role === "assistant" && !m.pending && m.content && (
+              <FeedbackButtons
+                answer={m.content}
+                prompt={messages[i - 1]?.content ?? ""}
+                model={picked.split(":").slice(1).join(":") || undefined}
+              />
+            )}
           </div>
         ))}
         <div ref={bottomRef} />

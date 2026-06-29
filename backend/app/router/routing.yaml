@@ -9,6 +9,15 @@
 version: 1
 default_provider: local
 
+# Which task_type (and therefore model lane) each agent role routes to.
+# Edit here to re-balance the team — no code change.
+agents:
+  research: reasoning
+  coding: coding
+  critic: critique
+  safety: structured_json
+  memory: structured_json
+
 task_types:
   # The "boss": apexmind plans the work and delegates to the specialists below.
   orchestration:

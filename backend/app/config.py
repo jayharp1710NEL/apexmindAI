@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     assistant_name: str = "ApexMind"
     creator_name: str = "Jay"
 
+    # Where collected training examples (feedback/corrections) are written.
+    training_data_dir: str = "datasets/training"
+
     # Datastores
     database_url: str = "postgresql+asyncpg://apex:apex@postgres:5432/apexmind"
     redis_url: str = "redis://redis:6379/0"

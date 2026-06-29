@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.benchmarks.routes import router as benchmarks_router
 from app.chat.routes import router as chat_router
 from app.config import settings
+from app.feedback.routes import router as feedback_router
 from app.memory.routes import router as memory_router
 from app.orchestrator.routes import router as orchestrator_router
 from app.rag.routes import router as rag_router
@@ -116,6 +117,7 @@ def create_app(
     app.include_router(memory_router)
     app.include_router(benchmarks_router)
     app.include_router(models_router)
+    app.include_router(feedback_router)
     return app
 
 

@@ -128,6 +128,16 @@ class LLMInterface:
     def available_providers(self) -> list[str]:
         return sorted(self._router.adapters.keys())
 
+    # Default agent -> task_type lanes (overridable via routing.yaml `agents:`).
+    _AGENT_DEFAULTS = {
+        "research": "reasoning", "coding": "coding", "critic": "critique",
+        "safety": "structured_json", "memory": "structured_json", "none": "reasoning",
+    }
+
+    def agent_task(self, agent: str) -> str:
+        configured = self._router.routing.get("agents", {})
+        return configured.get(agent) or self._AGENT_DEFAULTS.get(agent, "reasoning")
+
     # -- embeddings ------------------------------------------------------- #
     async def embed(
         self, inputs: list[str], *, task_type: str | None = None
