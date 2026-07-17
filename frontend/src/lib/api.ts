@@ -114,6 +114,55 @@ export async function listModels(): Promise<ModelOption[]> {
   }
 }
 
+export interface EstopStatus {
+  engaged: boolean;
+}
+
+export async function getEstop(): Promise<EstopStatus> {
+  try {
+    const res = await fetch(`${API_BASE}/api/safety/estop`);
+    if (!res.ok) return { engaged: false };
+    return await res.json();
+  } catch {
+    return { engaged: false };
+  }
+}
+
+export async function setEstop(engage: boolean, reason = "manual"): Promise<void> {
+  await fetch(`${API_BASE}/api/safety/estop/${engage ? "engage" : "clear"}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: engage ? JSON.stringify({ reason }) : undefined,
+  });
+}
+
+export interface PendingApproval {
+  id: string;
+  tool_name: string;
+  level: number;
+  session_id: string | null;
+  detail: Record<string, unknown>;
+  created_at: string;
+}
+
+export async function listApprovals(): Promise<PendingApproval[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/safety/approvals`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function resolveApproval(id: string, approved: boolean): Promise<void> {
+  await fetch(`${API_BASE}/api/safety/approvals/${id}/resolve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ approved }),
+  });
+}
+
 export async function sendFeedback(args: {
   prompt: string;
   answer: string;

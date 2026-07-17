@@ -141,7 +141,7 @@ export default function ChatPage() {
   }
 
   return (
-    <main className="mx-auto flex h-screen max-w-3xl flex-col p-4">
+    <main className="mx-auto flex h-[calc(100vh-49px)] max-w-3xl flex-col p-4">
       <header className="flex items-center justify-between border-b border-slate-800 pb-3">
         <h1 className="text-lg font-semibold">ApexMind · Chat</h1>
         <div className="flex items-center gap-3">
